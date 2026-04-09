@@ -10,7 +10,7 @@ import { collectSnapshot } from "./collector.js";
 import { getAuthFilePath, getDefaultMachineId, loadLocalSession } from "./utils.js";
 
 const DEFAULT_API_URL = process.env.SLOPARENA_API_URL?.trim() || "https://usageboard-api-production.up.railway.app";
-const DEFAULT_WEB_URL = process.env.SLOPARENA_WEB_URL?.trim() || "https://sloparena.com";
+const DEFAULT_WEB_URL = process.env.SLOPARENA_WEB_URL?.trim() || "https://sloparena.up.railway.app";
 
 interface ParsedArgs {
   command: "scan" | "submit" | "login" | "whoami" | "logout" | "profile" | "go" | "help";

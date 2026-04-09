@@ -31,7 +31,7 @@ Local development still uses:
 npm run join
 ```
 
-The published CLI will use the Railway backend by default. One thing still needs to be updated after you deploy the frontend: the CLI default leaderboard URL currently points to `https://sloparena.com` as a placeholder.
+The published CLI will use the Railway backend and Railway frontend by default.
 
 Install and build:
 
@@ -92,4 +92,4 @@ node packages/cli/dist/index.js logout
 - Local terminal login is stored in `~/.usageboard/auth.json`.
 - The leaderboard shows verified GitHub identity and an optional user-supplied X handle.
 - The CLI production API default is `https://usageboard-api-production.up.railway.app`.
-- The CLI production web default is currently a placeholder: `https://sloparena.com`.
+- The CLI production web default is `https://sloparena.up.railway.app`.
