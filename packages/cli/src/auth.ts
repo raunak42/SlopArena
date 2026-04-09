@@ -26,12 +26,10 @@ interface GitHubUserResponse {
   html_url: string;
 }
 
+const DEFAULT_GITHUB_CLIENT_ID = "Ov23ligfZI2kUzgsi75v";
+
 function getGitHubClientId(): string {
-  const value = process.env.GITHUB_CLIENT_ID?.trim();
-  if (!value) {
-    throw new Error("Missing GITHUB_CLIENT_ID. Create a GitHub OAuth app, enable device flow, and export GITHUB_CLIENT_ID.");
-  }
-  return value;
+  return process.env.GITHUB_CLIENT_ID?.trim() || DEFAULT_GITHUB_CLIENT_ID;
 }
 
 function sleep(ms: number): Promise<void> {
