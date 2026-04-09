@@ -1,0 +1,21 @@
+{
+  "name": "usageboard-cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "usageboard": "dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup src/index.ts --format esm --dts --clean"
+  },
+  "dependencies": {
+    "@usageboard/shared": "0.1.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "tsup": "^8.5.0",
+    "tsx": "^4.19.4"
+  }
+}
