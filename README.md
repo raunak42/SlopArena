@@ -1,4 +1,4 @@
-# Usageboard
+# SlopArena
 
 A small full-stack MVP for tracking local Claude Code and Codex usage and publishing snapshots to a shared leaderboard.
 
@@ -6,7 +6,7 @@ The API now stores leaderboard data in Neon Postgres instead of a local JSON fil
 
 ## What is included
 
-- `packages/cli`: scans local Claude/Codex logs, logs in with GitHub device flow, and submits snapshots
+- `packages/cli`: the `sloparena` CLI scans local Claude/Codex logs, logs in with GitHub device flow, and submits snapshots
 - `apps/api`: Express API with a file-backed snapshot store that verifies GitHub identity on submission
 - `apps/web`: React/Vite leaderboard UI with switches for provider, metric, and leaderboard mode
 
@@ -24,6 +24,14 @@ Create a GitHub OAuth app, enable **Device Flow**, and use its client ID here.
 For Neon, create a project and copy the connection string from the Neon dashboard. The API will auto-create the `usage_snapshots` table on boot.
 
 ## Commands
+
+Local development still uses:
+
+```bash
+npm run join
+```
+
+The published CLI will use the Railway backend by default. One thing still needs to be updated after you deploy the frontend: the CLI default leaderboard URL currently points to `https://sloparena.com` as a placeholder.
 
 Install and build:
 
@@ -83,3 +91,5 @@ node packages/cli/dist/index.js logout
 - The frontend refreshes dashboard data every 15 seconds.
 - Local terminal login is stored in `~/.usageboard/auth.json`.
 - The leaderboard shows verified GitHub identity and an optional user-supplied X handle.
+- The CLI production API default is `https://usageboard-api-production.up.railway.app`.
+- The CLI production web default is currently a placeholder: `https://sloparena.com`.

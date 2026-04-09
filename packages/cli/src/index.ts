@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import "dotenv/config";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
@@ -7,6 +8,9 @@ import { loginWithGitHub, logoutLocalSession, requireLocalSession, updateXHandle
 import { openBrowser } from "./browser.js";
 import { collectSnapshot } from "./collector.js";
 import { getAuthFilePath, getDefaultMachineId, loadLocalSession } from "./utils.js";
+
+const DEFAULT_API_URL = process.env.SLOPARENA_API_URL?.trim() || "https://usageboard-api-production.up.railway.app";
+const DEFAULT_WEB_URL = process.env.SLOPARENA_WEB_URL?.trim() || "https://sloparena.com";
 
 interface ParsedArgs {
   command: "scan" | "submit" | "login" | "whoami" | "logout" | "profile" | "go" | "help";
@@ -21,21 +25,21 @@ interface ParsedArgs {
 }
 
 function printHelp(): void {
-  console.log(`usageboard
+  console.log(`sloparena
 
 Commands:
-  usageboard go [--server http://localhost:4000] [--web http://localhost:5173]
-  usageboard login [--server http://localhost:4000]
-  usageboard whoami
-  usageboard profile [--x-handle raunak42] [--clear-x-handle]
-  usageboard logout
-  usageboard scan [--days 365] [--providers claude,codex] [--json]
-  usageboard submit [--server http://localhost:4000] [--days 365] [--providers claude,codex]
+  sloparena go [--server ${DEFAULT_API_URL}] [--web ${DEFAULT_WEB_URL}]
+  sloparena login [--server ${DEFAULT_API_URL}]
+  sloparena whoami
+  sloparena profile [--x-handle raunak42] [--clear-x-handle]
+  sloparena logout
+  sloparena scan [--days 365] [--providers claude,codex] [--json]
+  sloparena submit [--server ${DEFAULT_API_URL}] [--days 365] [--providers claude,codex]
 
 Options:
   --machine <id>        Stable machine identifier override
-  --server <url>        API base URL (default: http://localhost:4000)
-  --web <url>           Leaderboard URL (default: http://localhost:5173)
+  --server <url>        API base URL (default: ${DEFAULT_API_URL})
+  --web <url>           Leaderboard URL (default: ${DEFAULT_WEB_URL})
   --days <number>       Rolling window to scan (default: 365)
   --providers <list>    Comma-separated providers: claude,codex
   --x-handle <handle>   Save an optional X handle on your profile
@@ -81,8 +85,8 @@ function parseArgs(argv: string[]): ParsedArgs {
   return {
     command,
     machineId: typeof args.get("machine") === "string" ? String(args.get("machine")) : undefined,
-    server: typeof args.get("server") === "string" ? String(args.get("server")) : "http://localhost:4000",
-    web: typeof args.get("web") === "string" ? String(args.get("web")) : "http://localhost:5173",
+    server: typeof args.get("server") === "string" ? String(args.get("server")) : DEFAULT_API_URL,
+    web: typeof args.get("web") === "string" ? String(args.get("web")) : DEFAULT_WEB_URL,
     days: Number(typeof args.get("days") === "string" ? args.get("days") : 365),
     providers: parseProviders(typeof args.get("providers") === "string" ? String(args.get("providers")) : undefined),
     json: Boolean(args.get("json")),

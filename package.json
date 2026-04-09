@@ -11,7 +11,7 @@
     "dev:api": "npm run dev -w usageboard-api",
     "dev:web": "npm run dev -w usageboard-web",
     "join": "node packages/cli/dist/index.js go --server http://localhost:4000 --web http://localhost:5173",
-    "build": "npm run build -w @usageboard/shared && npm run build -w usageboard-cli && npm run build -w usageboard-api && npm run build -w usageboard-web"
+    "build": "npm run build -w @usageboard/shared && npm run build -w sloparena && npm run build -w usageboard-api && npm run build -w usageboard-web"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

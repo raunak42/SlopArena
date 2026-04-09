@@ -1,9 +1,9 @@
 {
-  "name": "usageboard-cli",
+  "name": "sloparena",
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "usageboard": "dist/index.js"
+    "sloparena": "dist/index.js"
   },
   "scripts": {
     "dev": "tsx src/index.ts",
