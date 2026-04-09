@@ -8,7 +8,7 @@ The API now stores leaderboard data in Neon Postgres instead of a local JSON fil
 
 - `packages/cli`: the `sloparena` CLI scans local Claude/Codex logs, logs in with GitHub device flow, and submits snapshots
 - `apps/api`: Express API with a file-backed snapshot store that verifies GitHub identity on submission
-- `apps/web`: React/Vite leaderboard UI with switches for provider, metric, and leaderboard mode
+- `apps/web`: React/Vite leaderboard UI with switches for provider, metric, and leaderboard mode, plus a small production static server for Railway
 
 ## Required environment variables
 

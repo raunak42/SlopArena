@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "start": "node server.js"
   },
   "dependencies": {
     "@usageboard/shared": "0.1.0",
+    "express": "^4.21.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
