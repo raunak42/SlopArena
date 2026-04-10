@@ -77,7 +77,9 @@ function box(title: string, lines: string[], tone: 'primary' | 'success' | 'dang
     visibleLength(titleText),
   );
   const horizontal = '─'.repeat(Math.max(0, lineWidth - visibleLength(titleText)));
-  const top = `┌${titleText}${horizontal}┐`;
+  const top = titleText
+    ? `┌─${titleText}${horizontal}─┐`
+    : `┌${'─'.repeat(lineWidth + 2)}┐`;
   const middle = lines
     .flatMap((line) => wrapText(line, lineWidth))
     .map((line) => `│ ${padRight(line, lineWidth)} │`)
@@ -172,7 +174,6 @@ export function printProfileCard(session: Pick<LocalAuthSession, 'profile' | 'se
         line('◦', 'display', paint(profile.displayName, ansi.bold)),
         line('◦', 'github', `${formatHandle(profile.handle)}  ${paint(profile.profileUrl, ansi.dim)}`),
         line('◦', 'x', formatHandle(profile.xHandle)),
-        line('◦', 'server', session.serverUrl),
         line('◦', 'saved', session.savedAt),
       ],
       'primary',

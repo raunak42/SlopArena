@@ -146,13 +146,6 @@ async function runGoFlow(parsed: ParsedArgs): Promise<void> {
     success(`Saved X handle ${formatHandle(session.profile.xHandle)}`);
   }
 
-  const action = (await prompt('Submit your 365-day snapshot now?', 'press Enter to continue, or type skip')).toLowerCase();
-  if (action === 'skip') {
-    printWarningCard('skipped', [`No snapshot was submitted.`, `Leaderboard → ${link(parsed.web)}`]);
-    await openBrowser(parsed.web);
-    return;
-  }
-
   const snapshot = await withSpinner('Crunching your local usage data...', () =>
     collectSnapshot({
       machineId: parsed.machineId,
