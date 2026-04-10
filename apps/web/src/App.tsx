@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   addTotals,
   emptyTotals,
@@ -57,6 +57,19 @@ type DetailBar = {
   label: string;
   value: number;
   percent: number;
+};
+
+type HeatmapCell = {
+  date: string;
+  value: number;
+  level: 0 | 1 | 2 | 3 | 4;
+  inRange: boolean;
+};
+
+type HeatmapData = {
+  weeks: HeatmapCell[][];
+  monthLabels: string[];
+  activeDays: number;
 };
 
 interface LeaderboardRow {
@@ -354,6 +367,86 @@ function dateDaysAgo(daysAgo: number): Date {
   date.setHours(0, 0, 0, 0);
   date.setDate(date.getDate() - daysAgo);
   return date;
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function startOfUtcWeek(date: Date): Date {
+  const next = new Date(date);
+  const weekday = (next.getUTCDay() + 6) % 7;
+  next.setUTCDate(next.getUTCDate() - weekday);
+  next.setUTCHours(0, 0, 0, 0);
+  return next;
+}
+
+function buildUsageHeatmap(byDay: DailyUsage[], metric: MetricKey): HeatmapData {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  const rangeEnd = today;
+  const rangeStart = addUtcDays(rangeEnd, -364);
+  const gridStart = startOfUtcWeek(rangeStart);
+  const trailingDays = 6 - ((rangeEnd.getUTCDay() + 6) % 7);
+  const gridEnd = addUtcDays(rangeEnd, trailingDays);
+
+  const valuesByDate = new Map(byDay.map((day) => [day.date, metricValue(day.totals, metric)]));
+  const activeValues = byDay.map((day) => metricValue(day.totals, metric)).filter((value) => value > 0);
+  const maxValue = activeValues.length ? Math.max(...activeValues) : 0;
+
+  const toLevel = (value: number): 0 | 1 | 2 | 3 | 4 => {
+    if (value <= 0 || maxValue <= 0) return 0;
+    const scaled = Math.log(value + 1) / Math.log(maxValue + 1);
+    if (scaled < 0.25) return 1;
+    if (scaled < 0.5) return 2;
+    if (scaled < 0.75) return 3;
+    return 4;
+  };
+
+  const weeks: HeatmapCell[][] = [];
+  const monthLabels: string[] = [];
+  let lastLabeledMonth = -1;
+
+  for (let cursor = new Date(gridStart); cursor.getTime() <= gridEnd.getTime(); cursor = addUtcDays(cursor, 7)) {
+    const week: HeatmapCell[] = [];
+    let label = '';
+
+    for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+      const day = addUtcDays(cursor, dayIndex);
+      const date = day.toISOString().slice(0, 10);
+      const inRange = day.getTime() >= rangeStart.getTime() && day.getTime() <= rangeEnd.getTime();
+      const value = inRange ? valuesByDate.get(date) ?? 0 : 0;
+
+      if (!label && inRange && day.getUTCDate() <= 7 && day.getUTCMonth() !== lastLabeledMonth) {
+        label = day.toLocaleString(undefined, { month: 'short', timeZone: 'UTC' });
+        lastLabeledMonth = day.getUTCMonth();
+      }
+
+      week.push({
+        date,
+        value,
+        level: inRange ? toLevel(value) : 0,
+        inRange,
+      });
+    }
+
+    if (!monthLabels.length && !label) {
+      label = rangeStart.toLocaleString(undefined, { month: 'short', timeZone: 'UTC' });
+      lastLabeledMonth = rangeStart.getUTCMonth();
+    }
+
+    weeks.push(week);
+    monthLabels.push(label);
+  }
+
+  return {
+    weeks,
+    monthLabels,
+    activeDays: activeValues.length,
+  };
 }
 
 function filterByWindow(byDay: DailyUsage[], days: number): DailyUsage[] {
@@ -731,6 +824,7 @@ function SelectedPanelContent({
   windowDays,
   selectedProviderBars,
   selectedModels,
+  selectedHeatmap,
   loading = false,
 }: {
   selected: LeaderboardRow | null;
@@ -738,8 +832,24 @@ function SelectedPanelContent({
   windowDays: WindowKey;
   selectedProviderBars: DetailBar[];
   selectedModels: DetailBar[];
+  selectedHeatmap: HeatmapData | null;
   loading?: boolean;
 }) {
+  const heatmapScrollRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    const node = heatmapScrollRef.current;
+    if (!node || !selected || !selectedHeatmap) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      node.scrollLeft = node.scrollWidth;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [metric, selected, selectedHeatmap]);
+
   if (loading && !selected) {
     return <SelectedPanelSkeleton metric={metric} windowDays={windowDays} />;
   }
@@ -834,10 +944,67 @@ function SelectedPanelContent({
       <section className="px-5 py-5 lg:px-6">
         <div className="mb-3.5 flex items-center justify-between gap-3">
           <div>
+            <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">activity map</p>
+            <h4 className="mt-1 text-xl font-medium tracking-[-0.04em]">Year grid</h4>
+          </div>
+          <Badge variant="muted" className="rounded-sm px-2 py-0.5 text-[11px]">365 days view</Badge>
+        </div>
+        {selectedHeatmap ? (
+          <div>
+            <div ref={heatmapScrollRef} className="heatmap-scrollbar -mx-1 overflow-x-auto px-1 pb-2">
+              <div
+                className="grid min-w-max items-center gap-x-1 gap-y-1.5"
+                style={{
+                  ['--heatmap-cell-size' as string]: '11px',
+                  gridTemplateColumns: `2rem repeat(${selectedHeatmap.weeks.length}, var(--heatmap-cell-size))`,
+                }}
+              >
+                <div />
+                {selectedHeatmap.monthLabels.map((label, index) => (
+                  <div key={`month-${index}`} className="w-[var(--heatmap-cell-size)] overflow-visible text-[10px] leading-none text-muted-foreground">
+                    {label}
+                  </div>
+                ))}
+
+                {['Mon', '', '', '', '', '', 'Sun'].map((label, rowIndex) => (
+                  <Fragment key={`row-${rowIndex}`}>
+                    <div className="pr-1 text-[10px] leading-none text-muted-foreground">{label}</div>
+                    {selectedHeatmap.weeks.map((week, columnIndex) => {
+                      const cell = week[rowIndex];
+                      return (
+                        <div
+                          key={`${cell.date}-${columnIndex}`}
+                          className={cn('usage-heatmap-cell', cell.inRange ? `usage-heat-${cell.level}` : 'opacity-0')}
+                          title={`${cell.date} · ${formatNumber(cell.value)} ${metric}`}
+                        />
+                      );
+                    })}
+                  </Fragment>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-3 text-[10px] leading-none text-muted-foreground">
+              <span>{selectedHeatmap.activeDays} active days</span>
+              <div className="flex items-center gap-1">
+                <span>Less</span>
+                {[0, 1, 2, 3, 4].map((level) => (
+                  <div key={`legend-${level}`} className={cn('usage-heatmap-cell', `usage-heat-${level}`)} style={{ ['--heatmap-cell-size' as string]: '10px' }} />
+                ))}
+                <span>More</span>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="px-5 py-5 lg:px-6">
+        <div className="mb-3.5 flex items-center justify-between gap-3">
+          <div>
             <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">model breakdown</p>
             <h4 className="mt-1 text-xl font-medium tracking-[-0.04em]">Top models</h4>
           </div>
-          <Badge variant="muted" className="rounded-sm px-2 py-0.5 text-[11px]">{metric}</Badge>
+          <Badge variant="muted" className="rounded-sm px-2 py-0.5 text-[11px]">{formatWindowLabel(windowDays)} view</Badge>
         </div>
         <div className="space-y-3.5">
           {selectedModels.map((item) => (
@@ -1153,6 +1320,12 @@ export default function App() {
     }));
   }, [metric, selected]);
 
+  const selectedHeatmap = useMemo(() => {
+    if (!selected) return null;
+    const yearlySummary = pickProvider(selected.user, provider, 365);
+    return yearlySummary ? buildUsageHeatmap(yearlySummary.byDay, metric) : null;
+  }, [metric, provider, selected]);
+
   const totalMetric = useMemo(() => rows.reduce((sum, row) => sum + row.metricValue, 0), [rows]);
   const maxMetricValue = useMemo(() => pageRows[0]?.metricValue || 1, [pageRows]);
   const isInitialLoading = loading && !data;
@@ -1373,8 +1546,6 @@ export default function App() {
                           </div>
                           <div className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden text-[12px] leading-none text-muted-foreground/90">
                             <span className="truncate">{row.topModel}</span>
-                            <span className="shrink-0 text-muted-foreground/35">·</span>
-                            <span className="shrink-0">{row.activityDays}d</span>
                           </div>
                         </div>
                       </div>
@@ -1480,6 +1651,7 @@ export default function App() {
                   windowDays={windowDays}
                   selectedProviderBars={selectedProviderBars}
                   selectedModels={selectedModels}
+                  selectedHeatmap={selectedHeatmap}
                   loading={isInitialLoading}
                 />
               </div>
@@ -1517,6 +1689,7 @@ export default function App() {
               windowDays={windowDays}
               selectedProviderBars={selectedProviderBars}
               selectedModels={selectedModels}
+              selectedHeatmap={selectedHeatmap}
               loading={isInitialLoading}
             />
           </div>
