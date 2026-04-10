@@ -329,14 +329,10 @@ function getThemePreference(): ThemeKey {
     const saved = window.localStorage.getItem('sloparena-theme');
     if (saved === 'light' || saved === 'dark') return saved;
   } catch {
-    // Ignore storage access issues and fall back to system preference.
+    // Ignore storage access issues and fall back to dark mode.
   }
 
-  try {
-    return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  } catch {
-    return 'dark';
-  }
+  return 'dark';
 }
 
 function rebuildSnapshot(provider: ProviderId, byDay: DailyUsage[], sourceCount: number): ProviderSnapshot {
@@ -624,17 +620,19 @@ function CopyCommandButton({ command }: { command: string }) {
   }
 
   return (
-    <Button
+    <button
       type="button"
-      variant="outline"
-      className="h-12 w-[176px] shrink-0 justify-center gap-2 rounded-sm px-4 sm:w-[200px] sm:px-6"
+      className="group relative flex h-12 w-full items-center rounded-sm border border-border bg-background px-4 pl-11 pr-12 text-left font-mono text-sm shadow-xs transition-colors hover:bg-accent/30"
       onClick={handleCopy}
       aria-label={copied ? 'Command copied' : 'Copy the SlopArena command'}
       title={copied ? 'Command copied' : 'Copy the SlopArena command'}
     >
-      <Copy className="size-4" />
-      {copied ? 'Copied' : 'Copy command'}
-    </Button>
+      <Terminal className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      <span className="truncate">{command}</span>
+      <span className="pointer-events-none absolute right-3.5 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-sm border border-border/70 bg-background text-muted-foreground transition-colors group-hover:bg-accent/60">
+        <Copy className="size-3.5" />
+      </span>
+    </button>
   );
 }
 
@@ -1371,11 +1369,7 @@ export default function App() {
             Publish your Claude Code and Codex receipts from the terminal, get ranked in public, and watch who is actually carrying the token economy.
           </p>
 
-          <div className="mt-10 flex w-full max-w-3xl items-stretch gap-2 sm:gap-3">
-            <div className="relative min-w-0 flex-1">
-              <Terminal className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input readOnly value={COMMAND} className="h-12 rounded-sm pl-11 font-mono text-sm" aria-label="Command to join the SlopArena leaderboard" />
-            </div>
+          <div className="mt-10 w-full max-w-full sm:w-fit sm:min-w-[30rem]">
             <CopyCommandButton command={COMMAND} />
           </div>
 
