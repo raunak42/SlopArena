@@ -21,6 +21,7 @@ import {
   Copy,
   MoonStar,
   RefreshCw,
+  Star,
   SunMedium,
   Terminal,
 } from 'lucide-react';
@@ -32,6 +33,8 @@ import { cn } from './lib/utils';
 import logoUrl from './assets/sloparena-logo.svg';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'https://usageboard-api-production.up.railway.app';
+const REPO_URL = 'https://github.com/raunak42/SlopArena';
+const REPO_API_URL = 'https://api.github.com/repos/raunak42/SlopArena';
 const COMMAND = 'npx sloparena go';
 const providers: Array<ProviderId | 'all'> = ['all', 'claude', 'codex'];
 const metrics = ['total', 'input', 'output', 'cache'] as const;
@@ -448,12 +451,37 @@ function rankGlyph(rank: number): string {
   return String(rank);
 }
 
-function Avatar({ name, url, className }: { name: string; url?: string; className?: string }) {
+function dicebearAvatarUrl(seed: string): string {
+  return `https://api.dicebear.com/9.x/thumbs/svg?seed=${encodeURIComponent(seed)}`;
+}
+
+function Avatar({ name, url, seed, className }: { name: string; url?: string; seed?: string; className?: string }) {
   const safeName = asString(name, 'Unknown builder');
   const safeUrl = asUrl(url);
+  const safeSeed = asString(seed, safeName).toLowerCase();
+  const fallbackUrl = dicebearAvatarUrl(safeSeed);
+  const [imageFailed, setImageFailed] = useState(false);
 
-  if (safeUrl) {
-    return <img className={cn('size-8 rounded-md border object-cover', className)} src={safeUrl} alt={safeName} referrerPolicy="no-referrer" />;
+  useEffect(() => {
+    setImageFailed(false);
+  }, [safeUrl, fallbackUrl]);
+
+  const displayUrl = imageFailed ? fallbackUrl : safeUrl ?? fallbackUrl;
+
+  if (displayUrl) {
+    return (
+      <img
+        className={cn('size-8 rounded-md border object-cover', className)}
+        src={displayUrl}
+        alt={safeName}
+        referrerPolicy="no-referrer"
+        onError={() => {
+          if (!imageFailed && safeUrl && displayUrl !== fallbackUrl) {
+            setImageFailed(true);
+          }
+        }}
+      />
+    );
   }
 
   return (
@@ -488,6 +516,51 @@ function CopyCommandButton({ command }: { command: string }) {
       <Copy className="size-4" />
       {copied ? 'Copied' : 'Copy command'}
     </Button>
+  );
+}
+
+function RepoStarButton() {
+  const [stars, setStars] = useState<number | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadStars() {
+      try {
+        const response = await fetch(REPO_API_URL, {
+          signal: controller.signal,
+          headers: { Accept: 'application/vnd.github+json' },
+        });
+        if (!response.ok) return;
+        const payload = (await response.json()) as { stargazers_count?: unknown };
+        const count = typeof payload.stargazers_count === 'number' ? payload.stargazers_count : Number.NaN;
+        if (Number.isFinite(count)) {
+          setStars(count);
+        }
+      } catch {
+        // Ignore star-count fetch issues; the button still works as a repo link.
+      }
+    }
+
+    void loadStars();
+    return () => controller.abort();
+  }, []);
+
+  return (
+    <a
+      href={REPO_URL}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="inline-flex h-8 items-center gap-2 rounded-sm border border-border/80 bg-card/80 px-2.5 text-sm font-medium text-foreground shadow-[0_1px_0_rgba(0,0,0,0.03)] transition-[transform,border-color,background-color,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-px hover:border-foreground/16 hover:bg-card active:translate-y-0 motion-reduce:transform-none motion-reduce:transition-none"
+      aria-label={stars !== null ? `View the SlopArena GitHub repository, ${formatNumber(stars)} stars` : 'View the SlopArena GitHub repository'}
+      title={stars !== null ? `${formatNumber(stars)} GitHub stars` : 'View the SlopArena GitHub repository'}
+    >
+      <GithubMarkIcon className="size-[15px] shrink-0" />
+      <span className="min-w-[1.8rem] text-[1rem] leading-none tracking-[-0.04em]">{stars !== null ? formatCompact(stars) : 'Star'}</span>
+      <span className="inline-flex size-4.5 items-center justify-center rounded-sm bg-amber-400/12 text-amber-500 dark:bg-amber-300/12 dark:text-amber-300">
+        <Star className="size-2.5 fill-current" />
+      </span>
+    </a>
   );
 }
 
@@ -655,7 +728,7 @@ function SelectedPanelContent({
         <div className="flex flex-col gap-5">
           <div className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-4">
-              <Avatar name={selected.displayName} url={selected.avatarUrl} className="size-16 shrink-0 rounded-xl border-border/80" />
+              <Avatar name={selected.displayName} url={selected.avatarUrl} seed={selected.githubHandle || selected.id} className="size-16 shrink-0 rounded-xl border-border/80" />
               <div className="min-w-0">
                 <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">selected operator</p>
                 <h3 className="mt-1.5 text-[2rem] font-medium tracking-[-0.06em] leading-none">{selected.displayName}</h3>
@@ -1069,20 +1142,23 @@ export default function App() {
     <div className="min-h-screen bg-background text-foreground">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.07),_transparent_35%),linear-gradient(to_bottom,_transparent,_rgba(0,0,0,0.04))] dark:bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.045),_transparent_32%),linear-gradient(to_bottom,_transparent,_rgba(255,255,255,0.02))]" />
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-0 pt-6 sm:px-6 lg:px-8">
-        <header className="flex items-center justify-between pb-8">
-          <div className="inline-flex items-center gap-3 text-sm font-medium leading-none">
+        <header className="flex items-center justify-between gap-3 pb-8">
+          <div className="inline-flex min-w-0 items-center gap-3 text-sm font-medium leading-none">
             <img src={logoUrl} alt="SlopArena logo" className="block size-10 shrink-0 self-center rounded-sm bg-background object-contain object-center p-0.5" />
             <span className="self-center leading-none">SlopArena</span>
           </div>
-          <button
-            type="button"
-            className="inline-flex items-center justify-center border-0 bg-transparent p-0 text-foreground shadow-none outline-none ring-0 transition-opacity hover:opacity-70"
-            onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
-            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {theme === 'dark' ? <SunMedium className="size-5" /> : <MoonStar className="size-5" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <RepoStarButton />
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center border-0 bg-transparent p-0 text-foreground shadow-none outline-none ring-0 transition-opacity hover:opacity-70"
+              onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? <SunMedium className="size-5" /> : <MoonStar className="size-5" />}
+            </button>
+          </div>
         </header>
 
         <section className="mx-auto flex w-full max-w-5xl flex-col items-center text-center">
@@ -1235,7 +1311,7 @@ export default function App() {
                     >
                       <div className="flex min-w-0 items-center gap-2 overflow-visible">
                         <span className="inline-flex w-9 shrink-0 items-center justify-start font-mono text-[18px] leading-none text-foreground transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-0.5 motion-reduce:transform-none motion-reduce:transition-none">{rankGlyph(row.rank)}</span>
-                        <Avatar name={row.displayName} url={row.avatarUrl} className="size-10 rounded-xl border-border/80 transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-0.5 group-hover:scale-[1.03] motion-reduce:transform-none motion-reduce:transition-none" />
+                        <Avatar name={row.displayName} url={row.avatarUrl} seed={row.githubHandle || row.id} className="size-10 rounded-xl border-border/80 transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-0.5 group-hover:scale-[1.03] motion-reduce:transform-none motion-reduce:transition-none" />
                         <div className="min-w-0 font-mono transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-0.5 motion-reduce:transform-none motion-reduce:transition-none">
                           <div className="grid min-w-0 gap-y-1 overflow-hidden text-[13px] leading-none min-[420px]:flex min-[420px]:items-center min-[420px]:gap-2 min-[420px]:gap-y-0">
                             <a
