@@ -2,6 +2,8 @@
 
 A small full-stack MVP for tracking local Claude Code and Codex usage and publishing snapshots to a shared leaderboard.
 
+Inspired by [`slopmeter`](https://github.com/JeanMeijer/slopmeter) by Jean Meijer. SlopArena uses its own code and parsers, but the original repo was a great reference point for the local-usage-tracking approach.
+
 The API now stores leaderboard data in Neon Postgres instead of a local JSON file.
 
 ## What is included

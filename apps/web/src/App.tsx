@@ -27,6 +27,7 @@ import {
 import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
 import { Input } from './components/ui/input';
+import { Skeleton } from './components/ui/skeleton';
 import { cn } from './lib/utils';
 import logoUrl from './assets/sloparena-logo.svg';
 
@@ -34,7 +35,7 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'https://usageboard-api-producti
 const COMMAND = 'npx sloparena go';
 const providers: Array<ProviderId | 'all'> = ['all', 'claude', 'codex'];
 const metrics = ['total', 'input', 'output', 'cache'] as const;
-const windows = [30, 90, 365] as const;
+const windows = [1, 30, 90, 365] as const;
 
 type MetricKey = (typeof metrics)[number];
 type WindowKey = (typeof windows)[number];
@@ -94,6 +95,10 @@ function formatPercent(value: number): string {
   if (rounded > 0) return `+${rounded}%`;
   if (rounded < 0) return `${rounded}%`;
   return '0%';
+}
+
+function formatWindowLabel(windowDays: number): string {
+  return windowDays === 1 ? '24 hours' : `${windowDays} days`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -502,19 +507,144 @@ function XMarkIcon({ className }: { className?: string }) {
   );
 }
 
+function LeaderboardRowSkeleton({ index }: { index: number }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={cn(
+        'grid w-full grid-cols-[minmax(0,1fr),280px] items-center gap-4 px-6 py-2.5',
+        index > 0 && 'border-t border-border/70',
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-2 overflow-visible">
+        <Skeleton className="h-5 w-9 rounded-sm" />
+        <Skeleton className="size-10 rounded-xl border border-border/60" />
+        <div className="min-w-0 flex-1 font-mono">
+          <div className="grid min-w-0 gap-y-1 overflow-hidden min-[420px]:flex min-[420px]:items-center min-[420px]:gap-2 min-[420px]:gap-y-0">
+            <Skeleton className="h-3.5 w-[6.5rem] max-w-[50%]" />
+            <Skeleton className="h-3.5 w-[5.5rem] max-w-[38%]" />
+          </div>
+          <div className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden">
+            <Skeleton className="h-3 w-[8.5rem] max-w-[65%]" />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <div className="flex items-center justify-between gap-3">
+          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-5 w-12" />
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-muted/70">
+          <Skeleton className="h-full w-[72%] rounded-full bg-foreground/18" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SelectedPanelSkeleton({ metric, windowDays }: { metric: MetricKey; windowDays: WindowKey }) {
+  return (
+    <div aria-hidden="true">
+      <section className="px-5 py-5 lg:px-6">
+        <div className="flex flex-col gap-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-4">
+              <Skeleton className="size-16 shrink-0 rounded-xl border border-border/60" />
+              <div className="min-w-0">
+                <Skeleton className="h-3 w-28" />
+                <Skeleton className="mt-3 h-8 w-44 max-w-[70vw]" />
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-[4.5rem]" />
+                  <Skeleton className="h-4 w-[6.5rem]" />
+                </div>
+              </div>
+            </div>
+            <Skeleton className="h-6 w-[4.5rem]" />
+          </div>
+
+          <div className="grid gap-2.5 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="border border-border/70 bg-muted/20 p-3.5">
+                <div className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">
+                  {index === 0 ? metric : index === 1 ? 'growth' : 'updated'}
+                </div>
+                <Skeleton className={cn('mt-2.5', index === 2 ? 'h-5 w-[6.5rem]' : 'h-8 w-24')} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="px-5 py-5 lg:px-6">
+        <div className="mb-3.5 flex items-center justify-between gap-3">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">model breakdown</p>
+            <h4 className="mt-1 text-xl font-medium tracking-[-0.04em]">Top models</h4>
+          </div>
+          <Badge variant="muted" className="rounded-sm px-2 py-0.5 text-[11px]">{metric}</Badge>
+        </div>
+        <div className="space-y-3.5">
+          {['84%', '68%', '52%', '38%', '26%'].map((width, index) => (
+            <div key={index} className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-4 w-14" />
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted/70">
+                <Skeleton className="h-full rounded-full bg-foreground/18" style={{ width }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="px-5 py-5 lg:px-6">
+        <div className="mb-3.5 flex items-center justify-between gap-3">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">traffic composition</p>
+            <h4 className="mt-1 text-xl font-medium tracking-[-0.04em]">Token split</h4>
+          </div>
+          <Badge variant="muted" className="rounded-sm px-2 py-0.5 text-[11px]">{formatWindowLabel(windowDays)} view</Badge>
+        </div>
+        <div className="space-y-3.5">
+          {['82%', '59%', '34%'].map((width, index) => (
+            <div key={index} className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted/70">
+                <Skeleton className="h-full rounded-full bg-foreground/18" style={{ width }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function SelectedPanelContent({
   selected,
   metric,
   windowDays,
   selectedProviderBars,
   selectedModels,
+  loading = false,
 }: {
   selected: LeaderboardRow | null;
   metric: MetricKey;
   windowDays: WindowKey;
   selectedProviderBars: DetailBar[];
   selectedModels: DetailBar[];
+  loading?: boolean;
 }) {
+  if (loading && !selected) {
+    return <SelectedPanelSkeleton metric={metric} windowDays={windowDays} />;
+  }
+
   if (!selected) {
     return <div className="px-5 py-8 text-sm text-muted-foreground lg:px-6">Pick a builder to inspect the breakdown.</div>;
   }
@@ -634,7 +764,7 @@ function SelectedPanelContent({
             <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">traffic composition</p>
             <h4 className="mt-1 text-xl font-medium tracking-[-0.04em]">Token split</h4>
           </div>
-          <Badge variant="muted" className="rounded-sm px-2 py-0.5 text-[11px]">{windowDays} day view</Badge>
+          <Badge variant="muted" className="rounded-sm px-2 py-0.5 text-[11px]">{formatWindowLabel(windowDays)} view</Badge>
         </div>
         <div className="space-y-3.5">
           {selectedProviderBars.map((item) => (
@@ -664,7 +794,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [provider, setProvider] = useState<ProviderId | 'all'>('all');
   const [metric, setMetric] = useState<MetricKey>('total');
-  const [windowDays, setWindowDays] = useState<WindowKey>(365);
+  const [windowDays, setWindowDays] = useState<WindowKey>(1);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
   const [theme, setTheme] = useState<ThemeKey>(getThemePreference);
@@ -926,6 +1056,7 @@ export default function App() {
 
   const totalMetric = useMemo(() => rows.reduce((sum, row) => sum + row.metricValue, 0), [rows]);
   const maxMetricValue = useMemo(() => pageRows[0]?.metricValue || 1, [pageRows]);
+  const isInitialLoading = loading && !data;
 
   function handleRowSelect(rowId: string) {
     setSelectedUserId(rowId);
@@ -980,7 +1111,7 @@ export default function App() {
             <div>
               <div className="flex flex-col gap-5 border-b border-border/70 px-6 py-5">
                 <div className="flex items-center gap-2.5">
-                  <h2 className="text-[2rem] font-medium tracking-[-0.06em]">Leaderboard</h2>
+                  <h2 className="text-[2rem] font-medium tracking-[-0.06em]">{windowDays === 1 ? "Today's Winners" : 'Leaderboard'}</h2>
                   <button
                     type="button"
                     className="inline-flex shrink-0 items-center justify-center self-center border-0 bg-transparent p-0 text-foreground shadow-none outline-none ring-0 transition-opacity hover:opacity-70 disabled:opacity-40"
@@ -1024,7 +1155,7 @@ export default function App() {
                       >
                         {windows.map((item) => (
                           <option key={item} value={item}>
-                            {item} days
+                            {formatWindowLabel(item)}
                           </option>
                         ))}
                       </select>
@@ -1061,7 +1192,15 @@ export default function App() {
                 </div>
               ) : null}
 
-              <div>
+              <div aria-busy={isInitialLoading}>
+                {isInitialLoading ? (
+                  <div>
+                    {Array.from({ length: ROW_CHUNK_SIZE }).map((_, index) => (
+                      <LeaderboardRowSkeleton key={index} index={index} />
+                    ))}
+                  </div>
+                ) : null}
+
                 {rows.length === 0 && !loading ? (
                   <div className="px-6 py-8 text-center">
                     <p className="text-base font-medium">No snapshots on the board yet.</p>
@@ -1069,7 +1208,7 @@ export default function App() {
                   </div>
                 ) : null}
 
-                {visibleRows.map((row, index) => {
+                {!isInitialLoading && visibleRows.map((row, index) => {
                   const positive = row.growth > 0;
                   const negative = row.growth < 0;
                   const selectedRow = selectedUserId === row.id;
@@ -1229,6 +1368,7 @@ export default function App() {
                 key={selected ? `${selected.id}:${currentPage}:${metric}:${provider}:${windowDays}` : `empty:${currentPage}:${metric}:${provider}:${windowDays}`}
                 ref={rightPanelScrollRef}
                 className="hide-scrollbar divide-y divide-border/70 lg:max-h-screen lg:overflow-y-auto"
+                aria-busy={isInitialLoading}
               >
                 <SelectedPanelContent
                   selected={selected}
@@ -1236,6 +1376,7 @@ export default function App() {
                   windowDays={windowDays}
                   selectedProviderBars={selectedProviderBars}
                   selectedModels={selectedModels}
+                  loading={isInitialLoading}
                 />
               </div>
             </div>
@@ -1264,6 +1405,7 @@ export default function App() {
             key={selected ? `mobile:${selected.id}:${currentPage}:${metric}:${provider}:${windowDays}` : `mobile-empty:${currentPage}:${metric}:${provider}:${windowDays}`}
             ref={mobileDetailScrollRef}
             className="hide-scrollbar flex-1 overflow-y-auto divide-y divide-border/70"
+            aria-busy={isInitialLoading}
           >
             <SelectedPanelContent
               selected={selected}
@@ -1271,6 +1413,7 @@ export default function App() {
               windowDays={windowDays}
               selectedProviderBars={selectedProviderBars}
               selectedModels={selectedModels}
+              loading={isInitialLoading}
             />
           </div>
         </div>
