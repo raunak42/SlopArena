@@ -1,6 +1,23 @@
 import postgres from "postgres";
 import type { UsageSnapshot } from "@sloparena/shared";
 
+function isUsageSnapshot(value: unknown): value is UsageSnapshot {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.userId === "string" &&
+    typeof candidate.machineId === "string" &&
+    typeof candidate.submittedAt === "string" &&
+    Array.isArray(candidate.providers) &&
+    candidate.profile !== null &&
+    typeof candidate.profile === "object"
+  );
+}
+
 let sqlClient: postgres.Sql | null = null;
 
 function getConnectionString(): string {
@@ -41,12 +58,14 @@ export async function initDatabase(): Promise<void> {
 
 export async function listSnapshots(): Promise<UsageSnapshot[]> {
   const sql = getSql();
-  const rows = await sql<{ payload: UsageSnapshot }[]>`
+  const rows = await sql<{ payload: unknown }[]>`
     select payload
     from usage_snapshots
     order by submitted_at desc
   `;
-  return rows.map((row) => row.payload);
+  return rows
+    .map((row) => row.payload)
+    .filter(isUsageSnapshot);
 }
 
 export async function insertSnapshot(snapshot: UsageSnapshot): Promise<void> {

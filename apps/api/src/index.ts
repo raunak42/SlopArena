@@ -53,7 +53,9 @@ app.post("/api/submissions", async (request, response) => {
       dashboard: buildDashboard(history),
     });
   } catch (error) {
-    response.status(401).json({ error: error instanceof Error ? error.message : String(error) });
+    const message = error instanceof Error ? error.message : String(error);
+    const status = message.includes("GitHub profile lookup failed") ? 401 : 500;
+    response.status(status).json({ error: message });
   }
 });
 
