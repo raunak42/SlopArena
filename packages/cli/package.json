@@ -1,6 +1,6 @@
 {
   "name": "sloparena",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "type": "module",
   "bin": {
     "sloparena": "dist/index.js"
