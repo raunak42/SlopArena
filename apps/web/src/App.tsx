@@ -359,6 +359,15 @@ function dateDaysAgo(daysAgo: number): Date {
 
 function filterByWindow(byDay: DailyUsage[], days: number): DailyUsage[] {
   if (days >= 365) return byDay;
+
+  if (days === 1) {
+    const latestActiveDay = [...byDay]
+      .reverse()
+      .find((day) => day.totals.total > 0 || (day.displayValue ?? 0) > 0);
+
+    return latestActiveDay ? [latestActiveDay] : [];
+  }
+
   const cutoff = dateDaysAgo(days - 1).getTime();
   return byDay.filter((day) => new Date(`${day.date}T00:00:00`).getTime() >= cutoff);
 }
