@@ -45,7 +45,9 @@ function isTokenTotals(value: unknown): value is TokenTotals {
     isNonNegativeSafeInteger(output) &&
     isNonNegativeSafeInteger(cache) &&
     isNonNegativeSafeInteger(total) &&
-    input + output + cache === total
+    total >= input &&
+    total >= output &&
+    total >= cache
   );
 }
 

@@ -95,7 +95,7 @@ function parseTokenTotals(value: unknown): TokenTotals | null {
   const cache = candidate.cache as number;
   const total = candidate.total as number;
 
-  if (input + output + cache !== total) {
+  if (total < input || total < output || total < cache) {
     return null;
   }
 
