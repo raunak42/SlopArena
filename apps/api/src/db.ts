@@ -60,6 +60,23 @@ function isUsageSnapshot(value: unknown): value is UsageSnapshot {
   );
 }
 
+function parseStoredSnapshot(value: unknown): UsageSnapshot | null {
+  if (isUsageSnapshot(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return isUsageSnapshot(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
 let sqlClient: postgres.Sql | null = null;
 
 function getConnectionString(): string {
@@ -106,15 +123,15 @@ export async function listSnapshots(): Promise<UsageSnapshot[]> {
     order by submitted_at desc
   `;
   return rows
-    .map((row) => row.payload)
-    .filter(isUsageSnapshot);
+    .map((row) => parseStoredSnapshot(row.payload))
+    .filter((row): row is UsageSnapshot => Boolean(row));
 }
 
 export async function insertSnapshot(snapshot: UsageSnapshot): Promise<void> {
   const sql = getSql();
   await sql`
     insert into usage_snapshots (id, user_id, machine_id, submitted_at, payload)
-    values (${snapshot.id}, ${snapshot.userId}, ${snapshot.machineId}, ${snapshot.submittedAt}, ${JSON.stringify(snapshot)}::jsonb)
+    values (${snapshot.id}, ${snapshot.userId}, ${snapshot.machineId}, ${snapshot.submittedAt}, ${sql.json(snapshot)})
     on conflict (id) do update
     set
       user_id = excluded.user_id,
