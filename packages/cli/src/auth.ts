@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { LocalAuthSession, PublicProfile } from "@sloparena/shared";
 import { openBrowser } from "./browser.js";
 import { clearLocalSession, loadLocalSession, saveLocalSession } from "./utils.js";
@@ -24,6 +25,13 @@ interface GitHubUserResponse {
   name: string | null;
   avatar_url: string;
   html_url: string;
+}
+
+interface BrowserLoginStatus {
+  status: "pending" | "complete" | "error" | "expired";
+  accessToken?: string;
+  profile?: PublicProfile;
+  error?: string;
 }
 
 const DEFAULT_GITHUB_CLIENT_ID = "Ov23ligfZI2kUzgsi75v";
@@ -134,28 +142,97 @@ export async function fetchGitHubProfile(accessToken: string, xHandle?: string):
   };
 }
 
-export async function loginWithGitHub(serverUrl: string): Promise<LocalAuthSession> {
-  const deviceCode = await requestDeviceCode();
-  const loginUrl = deviceCode.verification_uri_complete ?? deviceCode.verification_uri;
+async function pollBrowserLogin(serverUrl: string, state: string): Promise<{ accessToken: string; profile: PublicProfile }> {
+  const expiresAt = Date.now() + 10 * 60 * 1000;
+  while (Date.now() < expiresAt) {
+    await sleep(1500);
+    const response = await fetch(`${serverUrl.replace(/\/$/, "")}/api/auth/github/status?state=${encodeURIComponent(state)}`, {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (response.status === 404) {
+      throw new Error("GitHub browser login expired before it was completed. Run `sloparena login` again.");
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `GitHub browser login polling failed (${response.status}).`);
+    }
+
+    const payload = (await response.json()) as BrowserLoginStatus;
+    if (payload.status === "pending") {
+      continue;
+    }
+
+    if (payload.status === "complete" && payload.accessToken && payload.profile) {
+      return { accessToken: payload.accessToken, profile: payload.profile };
+    }
+
+    throw new Error(payload.error || "GitHub browser login failed.");
+  }
+
+  throw new Error("GitHub browser login timed out. Run `sloparena login` again.");
+}
+
+async function loginWithGitHubBrowser(serverUrl: string): Promise<LocalAuthSession> {
+  const state = randomUUID();
+  const loginUrl = `${serverUrl.replace(/\/$/, "")}/api/auth/github/start?state=${encodeURIComponent(state)}`;
   const opened = await openBrowser(loginUrl);
 
   console.log(opened ? "Opened browser for GitHub login." : "Open this URL in your browser to continue login:");
   if (!opened) {
     console.log(loginUrl);
   }
-  console.log(`Enter code if prompted: ${deviceCode.user_code}`);
 
-  const accessToken = await pollAccessToken(deviceCode);
   const existing = await loadLocalSession();
-  const profile = await fetchGitHubProfile(accessToken, existing?.profile.xHandle);
+  const result = await pollBrowserLogin(serverUrl, state);
   const session: LocalAuthSession = {
-    githubAccessToken: accessToken,
+    githubAccessToken: result.accessToken,
     serverUrl,
-    profile,
+    profile: {
+      ...result.profile,
+      xHandle: existing?.profile.xHandle,
+    },
     savedAt: new Date().toISOString(),
   };
   await saveLocalSession(session);
   return session;
+}
+
+export async function loginWithGitHub(serverUrl: string): Promise<LocalAuthSession> {
+  try {
+    return await loginWithGitHubBrowser(serverUrl);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("404") && !message.includes("Missing state") && !message.includes("Cannot GET") && !message.includes("GitHub browser login polling failed")) {
+      throw error;
+    }
+
+    const deviceCode = await requestDeviceCode();
+    const loginUrl = deviceCode.verification_uri_complete ?? deviceCode.verification_uri;
+    const opened = await openBrowser(loginUrl);
+
+    console.log("Falling back to GitHub device login.");
+    console.log(opened ? "Opened browser for GitHub login." : "Open this URL in your browser to continue login:");
+    if (!opened) {
+      console.log(loginUrl);
+    }
+    console.log(`Enter code if prompted: ${deviceCode.user_code}`);
+
+    const accessToken = await pollAccessToken(deviceCode);
+    const existing = await loadLocalSession();
+    const profile = await fetchGitHubProfile(accessToken, existing?.profile.xHandle);
+    const session: LocalAuthSession = {
+      githubAccessToken: accessToken,
+      serverUrl,
+      profile,
+      savedAt: new Date().toISOString(),
+    };
+    await saveLocalSession(session);
+    return session;
+  }
 }
 
 export async function requireLocalSession(): Promise<LocalAuthSession> {

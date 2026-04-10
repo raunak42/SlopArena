@@ -8,6 +8,72 @@ interface GitHubUserResponse {
   html_url: string;
 }
 
+interface AccessTokenResponse {
+  access_token?: string;
+  error?: string;
+  error_description?: string;
+}
+
+const DEFAULT_GITHUB_CLIENT_ID = "Ov23ligfZI2kUzgsi75v";
+
+export function getGitHubClientId(): string {
+  return process.env.GITHUB_CLIENT_ID?.trim() || DEFAULT_GITHUB_CLIENT_ID;
+}
+
+function getGitHubClientSecret(): string {
+  const value = process.env.GITHUB_CLIENT_SECRET?.trim();
+  if (!value) {
+    throw new Error("Missing GITHUB_CLIENT_SECRET for browser OAuth login.");
+  }
+  return value;
+}
+
+export function getGitHubCallbackUrl(): string {
+  const value = process.env.GITHUB_OAUTH_CALLBACK_URL?.trim();
+  if (!value) {
+    throw new Error("Missing GITHUB_OAUTH_CALLBACK_URL for browser OAuth login.");
+  }
+  return value;
+}
+
+export function buildGitHubAuthorizeUrl(state: string): string {
+  const url = new URL("https://github.com/login/oauth/authorize");
+  url.searchParams.set("client_id", getGitHubClientId());
+  url.searchParams.set("redirect_uri", getGitHubCallbackUrl());
+  url.searchParams.set("scope", "read:user");
+  url.searchParams.set("state", state);
+  return url.toString();
+}
+
+export async function exchangeGitHubCode(code: string): Promise<string> {
+  const body = new URLSearchParams({
+    client_id: getGitHubClientId(),
+    client_secret: getGitHubClientSecret(),
+    code,
+    redirect_uri: getGitHubCallbackUrl(),
+  });
+
+  const response = await fetch("https://github.com/login/oauth/access_token", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    body,
+  });
+
+  if (!response.ok) {
+    throw new Error(`GitHub OAuth token exchange failed (${response.status}): ${await response.text()}`);
+  }
+
+  const payload = (await response.json()) as AccessTokenResponse;
+  if (!payload.access_token) {
+    throw new Error(payload.error_description || payload.error || "GitHub OAuth token exchange failed.");
+  }
+
+  return payload.access_token;
+}
+
 export async function fetchGitHubProfile(accessToken: string, xHandle?: string): Promise<PublicProfile> {
   const response = await fetch("https://api.github.com/user", {
     headers: {
