@@ -1,5 +1,5 @@
 import postgres from "postgres";
-import type { UsageSnapshot } from "@usageboard/shared";
+import type { UsageSnapshot } from "@sloparena/shared";
 
 let sqlClient: postgres.Sql | null = null;
 

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
-import type { UsageSnapshot } from "@usageboard/shared";
+import type { UsageSnapshot } from "@sloparena/shared";
 import { buildDashboard } from "./aggregate.js";
 import { initDatabase, insertSnapshot, listSnapshots, pingDatabase } from "./db.js";
 import { fetchGitHubProfile } from "./github.js";
@@ -60,7 +60,7 @@ app.post("/api/submissions", async (request, response) => {
 async function start(): Promise<void> {
   await initDatabase();
   app.listen(port, () => {
-    console.log(`usageboard-api listening on http://localhost:${port}`);
+    console.log(`sloparena-api listening on http://localhost:${port}`);
   });
 }
 

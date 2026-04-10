@@ -1,4 +1,4 @@
-import type { LocalAuthSession, PublicProfile } from "@usageboard/shared";
+import type { LocalAuthSession, PublicProfile } from "@sloparena/shared";
 import { openBrowser } from "./browser.js";
 import { clearLocalSession, loadLocalSession, saveLocalSession } from "./utils.js";
 
@@ -99,13 +99,13 @@ async function pollAccessToken(deviceCode: DeviceCodeResponse): Promise<string> 
     }
 
     if (payload.error === "expired_token") {
-      throw new Error("GitHub login expired before it was completed. Run `usageboard login` again.");
+      throw new Error("GitHub login expired before it was completed. Run `sloparena login` again.");
     }
 
     throw new Error(payload.error_description || payload.error || "GitHub login failed.");
   }
 
-  throw new Error("GitHub login timed out. Run `usageboard login` again.");
+  throw new Error("GitHub login timed out. Run `sloparena login` again.");
 }
 
 export async function fetchGitHubProfile(accessToken: string, xHandle?: string): Promise<PublicProfile> {
@@ -113,7 +113,7 @@ export async function fetchGitHubProfile(accessToken: string, xHandle?: string):
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${accessToken}`,
-      "User-Agent": "usageboard",
+      "User-Agent": "sloparena",
       "X-GitHub-Api-Version": "2022-11-28",
     },
   });
@@ -161,7 +161,7 @@ export async function loginWithGitHub(serverUrl: string): Promise<LocalAuthSessi
 export async function requireLocalSession(): Promise<LocalAuthSession> {
   const session = await loadLocalSession();
   if (!session) {
-    throw new Error("No saved login session. Run `usageboard login --server <url>` first.");
+    throw new Error("No saved login session. Run `sloparena login --server <url>` first.");
   }
   return session;
 }

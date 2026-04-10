@@ -2,14 +2,14 @@
 import "dotenv/config";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import type { ProviderId } from "@usageboard/shared";
+import type { ProviderId } from "@sloparena/shared";
 import { submitSnapshot } from "./api.js";
 import { loginWithGitHub, logoutLocalSession, requireLocalSession, updateXHandle } from "./auth.js";
 import { openBrowser } from "./browser.js";
 import { collectSnapshot } from "./collector.js";
 import { getAuthFilePath, getDefaultMachineId, loadLocalSession } from "./utils.js";
 
-const DEFAULT_API_URL = process.env.SLOPARENA_API_URL?.trim() || "https://usageboard-api-production.up.railway.app";
+const DEFAULT_API_URL = process.env.SLOPARENA_API_URL?.trim() || "https://sloparena-api-production.up.railway.app";
 const DEFAULT_WEB_URL = process.env.SLOPARENA_WEB_URL?.trim() || "https://sloparena.up.railway.app";
 
 interface ParsedArgs {

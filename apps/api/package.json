@@ -1,5 +1,5 @@
 {
-  "name": "usageboard-api",
+  "name": "sloparena-api",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -7,7 +7,7 @@
     "build": "tsup src/index.ts --format esm --dts --clean"
   },
   "dependencies": {
-    "@usageboard/shared": "0.1.1",
+    "@sloparena/shared": "0.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

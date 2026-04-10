@@ -10,7 +10,7 @@ import {
   type ProviderSnapshot,
   type UsageSnapshot,
   type UserAggregate,
-} from "@usageboard/shared";
+} from "@sloparena/shared";
 
 function mergeModelLists(lists: ModelUsage[][]): ModelUsage[] {
   const modelMap = new Map<string, ModelUsage>();

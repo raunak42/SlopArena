@@ -7,7 +7,7 @@ The API now stores leaderboard data in Neon Postgres instead of a local JSON fil
 ## What is included
 
 - `packages/cli`: the `sloparena` CLI scans local Claude/Codex logs, logs in with GitHub device flow, and submits snapshots
-- `apps/api`: Express API with a file-backed snapshot store that verifies GitHub identity on submission
+- `apps/api`: Express API backed by Neon Postgres that verifies GitHub identity on submission
 - `apps/web`: React/Vite leaderboard UI with switches for provider, metric, and leaderboard mode, plus a small production static server for Railway
 
 ## Required environment variables
@@ -15,11 +15,10 @@ The API now stores leaderboard data in Neon Postgres instead of a local JSON fil
 Set these before starting the app:
 
 ```bash
-export GITHUB_CLIENT_ID="..."
 export NEON_DATABASE_URL="postgresql://..."
 ```
 
-Create a GitHub OAuth app, enable **Device Flow**, and use its client ID here.
+The published CLI already includes the public GitHub client ID by default, so you do not need `GITHUB_CLIENT_ID` for normal CLI usage.
 
 For Neon, create a project and copy the connection string from the Neon dashboard. The API will auto-create the `usage_snapshots` table on boot.
 
@@ -89,7 +88,8 @@ node packages/cli/dist/index.js logout
 - The API stores every submission in Neon Postgres (`usage_snapshots` table).
 - The leaderboard aggregates the latest snapshot per `userId + machineId`, so re-submitting from the same machine updates the board instead of double counting.
 - The frontend refreshes dashboard data every 15 seconds.
-- Local terminal login is stored in `~/.usageboard/auth.json`.
+- Local terminal login is stored in `~/.sloparena/auth.json`.
 - The leaderboard shows verified GitHub identity and an optional user-supplied X handle.
-- The CLI production API default is `https://usageboard-api-production.up.railway.app`.
+- The CLI production API default is `https://sloparena-api-production.up.railway.app`.
+  You should point this at your real production backend domain before the next public release.
 - The CLI production web default is `https://sloparena.up.railway.app`.

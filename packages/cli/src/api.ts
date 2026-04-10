@@ -1,4 +1,4 @@
-import type { SnapshotDraft, SubmitSnapshotRequest } from "@usageboard/shared";
+import type { SnapshotDraft, SubmitSnapshotRequest } from "@sloparena/shared";
 
 export async function submitSnapshot(
   serverUrl: string,

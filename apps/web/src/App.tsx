@@ -9,9 +9,9 @@ import {
   type ProviderSnapshot,
   type TokenTotals,
   type UserAggregate,
-} from '@usageboard/shared';
+} from '@sloparena/shared';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+const API_URL = import.meta.env.VITE_API_URL ?? 'https://sloparena-api-production.up.railway.app';
 const providers: Array<ProviderId | 'all'> = ['all', 'claude', 'codex'];
 const metrics = ['total', 'input', 'output', 'cache'] as const;
 const modes = ['users', 'models'] as const;
@@ -249,7 +249,7 @@ export default function App() {
     <main className="shell">
       <section className="hero">
         <div>
-          <span className="eyebrow">Usageboard</span>
+          <span className="eyebrow">SlopArena</span>
           <h1>GitHub-verified leaderboard for Claude Code and Codex.</h1>
           <p>
             Developers sign in from the terminal with GitHub, optionally add an X handle, and publish local usage snapshots. The board can switch between total usage, input, output, cache, and model rankings instantly.

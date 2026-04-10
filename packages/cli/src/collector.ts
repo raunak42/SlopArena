@@ -1,4 +1,4 @@
-import type { ProviderId, SnapshotDraft } from "@usageboard/shared";
+import type { ProviderId, SnapshotDraft } from "@sloparena/shared";
 import { collectClaude } from "./parsers/claude.js";
 import { collectCodex } from "./parsers/codex.js";
 import { getDefaultMachineId, makeSnapshotBase, resolveDateWindow } from "./utils.js";

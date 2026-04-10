@@ -16,7 +16,7 @@ import {
   type ProviderSnapshot,
   type SnapshotDraft,
   type TokenTotals,
-} from "@usageboard/shared";
+} from "@sloparena/shared";
 
 export interface AggregatedProviderState {
   provider: ProviderId;
@@ -26,7 +26,7 @@ export interface AggregatedProviderState {
   sourceCount: number;
 }
 
-const APP_DIR = join(homedir(), ".usageboard");
+const APP_DIR = join(homedir(), ".sloparena");
 const AUTH_FILE = join(APP_DIR, "auth.json");
 
 export function createProviderState(provider: ProviderId): AggregatedProviderState {
@@ -171,7 +171,7 @@ export function toDateKey(timestamp: Date): string {
 
 export function getDefaultMachineId(): string {
   return createHash("sha256")
-    .update(`${hostname()}::${homedir()}::usageboard`)
+    .update(`${hostname()}::${homedir()}::sloparena`)
     .digest("hex")
     .slice(0, 16);
 }

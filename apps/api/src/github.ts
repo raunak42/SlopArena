@@ -1,4 +1,4 @@
-import type { PublicProfile } from "@usageboard/shared";
+import type { PublicProfile } from "@sloparena/shared";
 
 interface GitHubUserResponse {
   id: number;
@@ -13,7 +13,7 @@ export async function fetchGitHubProfile(accessToken: string, xHandle?: string):
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${accessToken}`,
-      "User-Agent": "usageboard",
+      "User-Agent": "sloparena",
       "X-GitHub-Api-Version": "2022-11-28",
     },
   });

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { ProviderSnapshot } from "@usageboard/shared";
+import type { ProviderSnapshot } from "@sloparena/shared";
 import {
   addUsage,
   createProviderState,

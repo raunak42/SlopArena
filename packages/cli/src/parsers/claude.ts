@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { ProviderSnapshot, TokenTotals } from "@usageboard/shared";
+import type { ProviderSnapshot, TokenTotals } from "@sloparena/shared";
 import {
   addActivityDay,
   addUsage,

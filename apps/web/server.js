@@ -14,5 +14,5 @@ app.get('*', (_request, response) => {
 });
 
 app.listen(port, () => {
-  console.log(`usageboard-web listening on http://localhost:${port}`);
+  console.log(`sloparena-web listening on http://localhost:${port}`);
 });

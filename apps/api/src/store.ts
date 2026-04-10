@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { UsageSnapshot } from "@usageboard/shared";
+import type { UsageSnapshot } from "@sloparena/shared";
 
 interface StoreShape {
   history: UsageSnapshot[];

@@ -6,7 +6,7 @@ import type {
   SnapshotDraft,
   SubmitSnapshotRequest,
   TokenTotals,
-} from "@usageboard/shared";
+} from "@sloparena/shared";
 
 function isNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
