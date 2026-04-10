@@ -216,11 +216,11 @@ function rankGlyph(rank: number): string {
 
 function Avatar({ name, url }: { name: string; url?: string }) {
   if (url) {
-    return <img className="size-11 rounded-sm border object-cover" src={url} alt={name} referrerPolicy="no-referrer" />;
+    return <img className="size-9 rounded-sm border object-cover" src={url} alt={name} referrerPolicy="no-referrer" />;
   }
 
   return (
-    <div className="flex size-11 items-center justify-center rounded-sm border bg-muted text-sm font-medium">
+    <div className="flex size-9 items-center justify-center rounded-sm border bg-muted text-xs font-medium">
       {name.slice(0, 1).toUpperCase()}
     </div>
   );
@@ -495,7 +495,7 @@ export default function App() {
                 </div>
               ) : null}
 
-              <div className="hidden grid-cols-[72px,minmax(0,1.7fr),minmax(0,1fr),180px,140px] gap-4 px-6 py-5 text-sm text-muted-foreground md:grid">
+              <div className="hidden grid-cols-[60px,minmax(0,1.7fr),minmax(0,1fr),170px,130px] gap-3 px-6 py-4 text-sm text-muted-foreground md:grid">
                 <span>#</span>
                 <span>Builder</span>
                 <span>Identity</span>
@@ -522,26 +522,26 @@ export default function App() {
                       type="button"
                       onClick={() => setSelectedUserId(row.id)}
                       className={cn(
-                        'grid w-full gap-4 border-t border-border/70 px-6 py-5 text-left transition-colors',
-                        'md:grid-cols-[72px,minmax(0,1.7fr),minmax(0,1fr),180px,140px] md:items-center',
+                        'grid w-full gap-3 border-t border-border/70 px-6 py-3.5 text-left transition-colors',
+                        'md:grid-cols-[60px,minmax(0,1.7fr),minmax(0,1fr),170px,130px] md:items-center',
                         selectedRow && 'bg-accent/40',
                       )}
                     >
-                      <div className="flex items-center gap-3 text-xl font-medium tracking-[-0.04em] md:text-base md:font-normal md:tracking-normal">
+                      <div className="flex items-center gap-2 text-lg font-medium tracking-[-0.04em] md:text-base md:font-normal md:tracking-normal">
                         <span className="inline-flex min-w-10 items-center justify-start font-mono text-base text-foreground">{rankGlyph(row.rank)}</span>
                       </div>
 
-                      <div className="flex min-w-0 items-center gap-4">
+                      <div className="flex min-w-0 items-center gap-3">
                         <Avatar name={row.displayName} url={row.avatarUrl} />
                         <div className="min-w-0">
-                          <div className="truncate text-lg font-medium tracking-[-0.04em]">{row.displayName}</div>
-                          <div className="mt-1 truncate text-sm text-muted-foreground">
+                          <div className="truncate text-base font-medium tracking-[-0.03em]">{row.displayName}</div>
+                          <div className="mt-0.5 truncate text-xs text-muted-foreground">
                             {row.topModel} · {row.activityDays} active days · {row.machines} machine{row.machines === 1 ? '' : 's'}
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex min-w-0 flex-col gap-2">
+                      <div className="flex min-w-0 flex-col gap-1">
                         <a
                           href={row.githubUrl}
                           target="_blank"
@@ -551,27 +551,27 @@ export default function App() {
                         >
                           {row.githubHandle}
                         </a>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-1.5">
                           {row.xHandle ? <Badge variant="muted">@{row.xHandle}</Badge> : <Badge variant="outline">GitHub only</Badge>}
                         </div>
                       </div>
 
                       <div className="text-left md:text-right">
-                        <div className="text-2xl font-medium tracking-[-0.05em] md:text-[2rem]">{formatNumber(row.metricValue)}</div>
-                        <div className="mt-1 text-sm text-muted-foreground">updated {formatUpdatedAt(row.lastSubmitted)}</div>
+                        <div className="text-xl font-medium tracking-[-0.04em] md:text-[1.65rem]">{formatNumber(row.metricValue)}</div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">updated {formatUpdatedAt(row.lastSubmitted)}</div>
                       </div>
 
-                      <div className="flex items-center justify-start gap-2 md:justify-end">
+                      <div className="flex items-center justify-start gap-1.5 md:justify-end">
                         {positive ? (
-                          <ArrowUpRight className="size-5 text-emerald-500" />
+                          <ArrowUpRight className="size-4 text-emerald-500" />
                         ) : negative ? (
-                          <ArrowDownRight className="size-5 text-rose-500" />
+                          <ArrowDownRight className="size-4 text-rose-500" />
                         ) : (
-                          <div className="size-5 rounded-sm border border-border" />
+                          <div className="size-4 rounded-sm border border-border" />
                         )}
                         <span
                           className={cn(
-                            'text-2xl font-medium tracking-[-0.05em]',
+                            'text-xl font-medium tracking-[-0.04em]',
                             positive && 'text-emerald-500',
                             negative && 'text-rose-500',
                             !positive && !negative && 'text-muted-foreground',
