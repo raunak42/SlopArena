@@ -91,4 +91,46 @@
   select {
     color-scheme: light dark;
   }
+
+  :where(button:not(:disabled), [role='button'], a[href], summary, select, input[type='button'], input[type='submit'], input[type='reset'], label[for]) {
+    cursor: pointer;
+  }
+
+  :where(button:disabled, select:disabled, input:disabled, textarea:disabled) {
+    cursor: not-allowed;
+  }
+}
+
+@layer utilities {
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .right-panel-bar {
+    animation: right-panel-bar-in 520ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform, opacity;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .right-panel-bar {
+      animation: none;
+      will-change: auto;
+    }
+  }
+}
+
+@keyframes right-panel-bar-in {
+  from {
+    opacity: 0.38;
+    transform: scaleX(0.7);
+  }
+  to {
+    opacity: 0.9;
+    transform: scaleX(1);
+  }
 }

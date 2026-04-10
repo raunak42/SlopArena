@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { LocalAuthSession, PublicProfile } from "@sloparena/shared";
 import { openBrowser } from "./browser.js";
+import { info, link, success, warning } from "./ui.js";
 import { clearLocalSession, loadLocalSession, saveLocalSession } from "./utils.js";
 
 interface DeviceCodeResponse {
@@ -235,9 +236,11 @@ async function loginWithGitHubBrowser(serverUrl: string): Promise<LocalAuthSessi
   const loginUrl = `${serverUrl.replace(/\/$/, "")}/api/auth/github/start?state=${encodeURIComponent(state)}`;
   const opened = await openBrowser(loginUrl);
 
-  console.log(opened ? "Opened browser for GitHub login." : "Open this URL in your browser to continue login:");
-  if (!opened) {
-    console.log(loginUrl);
+  if (opened) {
+    success('Opened your browser for GitHub login.');
+  } else {
+    warning('Open this URL in your browser to continue login:');
+    console.log(link(loginUrl));
   }
 
   const existing = await loadLocalSession();
@@ -268,12 +271,14 @@ export async function loginWithGitHub(serverUrl: string): Promise<LocalAuthSessi
     const loginUrl = deviceCode.verification_uri_complete ?? deviceCode.verification_uri;
     const opened = await openBrowser(loginUrl);
 
-    console.log("Falling back to GitHub device login.");
-    console.log(opened ? "Opened browser for GitHub login." : "Open this URL in your browser to continue login:");
-    if (!opened) {
-      console.log(loginUrl);
+    warning('Falling back to GitHub device login.');
+    if (opened) {
+      success('Opened your browser for GitHub login.');
+    } else {
+      warning('Open this URL in your browser to continue login:');
+      console.log(link(loginUrl));
     }
-    console.log(`Enter code if prompted: ${deviceCode.user_code}`);
+    info(`Enter code if prompted: ${deviceCode.user_code}`);
 
     const accessToken = await pollAccessToken(deviceCode);
     const existing = await loadLocalSession();
