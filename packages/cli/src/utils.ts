@@ -28,6 +28,8 @@ export interface AggregatedProviderState {
 
 const APP_DIR = join(homedir(), ".sloparena");
 const AUTH_FILE = join(APP_DIR, "auth.json");
+const LEGACY_APP_DIR = join(homedir(), ".usageboard");
+const LEGACY_AUTH_FILE = join(LEGACY_APP_DIR, "auth.json");
 
 export function createProviderState(provider: ProviderId): AggregatedProviderState {
   return {
@@ -217,7 +219,18 @@ export async function saveLocalSession(session: LocalAuthSession): Promise<void>
 }
 
 export async function loadLocalSession(): Promise<LocalAuthSession | null> {
-  return readJsonFile<LocalAuthSession>(AUTH_FILE);
+  const current = await readJsonFile<LocalAuthSession>(AUTH_FILE);
+  if (current) {
+    return current;
+  }
+
+  const legacy = await readJsonFile<LocalAuthSession>(LEGACY_AUTH_FILE);
+  if (legacy) {
+    await saveLocalSession(legacy);
+    return legacy;
+  }
+
+  return null;
 }
 
 export async function clearLocalSession(): Promise<void> {

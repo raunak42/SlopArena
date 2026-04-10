@@ -1,6 +1,48 @@
 import postgres from "postgres";
 import type { UsageSnapshot } from "@sloparena/shared";
 
+function isTokenTotals(value: unknown): boolean {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return [candidate.input, candidate.output, candidate.cache, candidate.total].every(
+    (item) => typeof item === "number" && Number.isFinite(item),
+  );
+}
+
+function isProviderSnapshot(value: unknown): boolean {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    (candidate.provider === "claude" || candidate.provider === "codex") &&
+    isTokenTotals(candidate.totals) &&
+    Array.isArray(candidate.byModel) &&
+    Array.isArray(candidate.byDay) &&
+    typeof candidate.sourceCount === "number" &&
+    typeof candidate.activityDays === "number"
+  );
+}
+
+function isPublicProfile(value: unknown): boolean {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    candidate.provider === "github" &&
+    typeof candidate.providerUserId === "string" &&
+    typeof candidate.handle === "string" &&
+    typeof candidate.displayName === "string" &&
+    typeof candidate.profileUrl === "string"
+  );
+}
+
 function isUsageSnapshot(value: unknown): value is UsageSnapshot {
   if (!value || typeof value !== "object") {
     return false;
@@ -13,8 +55,8 @@ function isUsageSnapshot(value: unknown): value is UsageSnapshot {
     typeof candidate.machineId === "string" &&
     typeof candidate.submittedAt === "string" &&
     Array.isArray(candidate.providers) &&
-    candidate.profile !== null &&
-    typeof candidate.profile === "object"
+    candidate.providers.every(isProviderSnapshot) &&
+    isPublicProfile(candidate.profile)
   );
 }
 
