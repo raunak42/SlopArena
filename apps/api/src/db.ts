@@ -30,9 +30,9 @@ function isValidIsoDateTime(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0 && Number.isFinite(Date.parse(value));
 }
 
-function isTokenTotals(value: unknown): value is TokenTotals {
+function normalizeTokenTotals(value: unknown): TokenTotals | null {
   if (!isRecord(value)) {
-    return false;
+    return null;
   }
 
   const input = value.input;
@@ -40,38 +40,85 @@ function isTokenTotals(value: unknown): value is TokenTotals {
   const cache = value.cache;
   const total = value.total;
 
-  return (
-    isNonNegativeSafeInteger(input) &&
-    isNonNegativeSafeInteger(output) &&
-    isNonNegativeSafeInteger(cache) &&
-    isNonNegativeSafeInteger(total) &&
-    total >= input &&
-    total >= output &&
-    total >= cache
-  );
-}
-
-function isModelUsage(value: unknown): boolean {
-  if (!isRecord(value)) {
-    return false;
+  if (
+    !isNonNegativeSafeInteger(input) ||
+    !isNonNegativeSafeInteger(output) ||
+    !isNonNegativeSafeInteger(cache) ||
+    !isNonNegativeSafeInteger(total) ||
+    total < input ||
+    total < output ||
+    total < cache
+  ) {
+    return null;
   }
 
-  return typeof value.model === 'string' && value.model.trim().length > 0 && value.model.length <= 120 && isTokenTotals(value.tokens);
+  return {
+    input,
+    output,
+    cache,
+    total,
+  };
 }
 
-function isDailyUsage(value: unknown): boolean {
-  if (!isRecord(value)) {
-    return false;
+function normalizeTotalsForProvider(provider: ProviderId, totals: TokenTotals): TokenTotals {
+  if (provider === 'claude' && totals.cache > 0 && totals.total === totals.input + totals.output) {
+    const nonCacheTotal = Math.max(0, totals.total - totals.cache);
+    const weightSum = totals.input + totals.output;
+    const input = weightSum > 0 ? Math.round((totals.input / weightSum) * nonCacheTotal) : nonCacheTotal;
+    const output = Math.max(0, nonCacheTotal - input);
+
+    return {
+      input,
+      output,
+      cache: totals.cache,
+      total: input + output + totals.cache,
+    };
   }
 
-  return (
-    isValidDateKey(value.date) &&
-    isTokenTotals(value.totals) &&
-    Array.isArray(value.models) &&
-    value.models.length <= 300 &&
-    value.models.every(isModelUsage) &&
-    (value.displayValue === undefined || isNonNegativeSafeInteger(value.displayValue))
-  );
+  if (provider === 'codex') {
+    return {
+      ...totals,
+      total: Math.max(totals.total, totals.input + totals.output + totals.cache),
+    };
+  }
+
+  return totals;
+}
+
+function normalizeModelUsage(value: unknown): { model: string; tokens: TokenTotals } | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const tokens = normalizeTokenTotals(value.tokens);
+  if (typeof value.model !== 'string' || value.model.trim().length === 0 || value.model.length > 120 || !tokens) {
+    return null;
+  }
+
+  return { model: value.model, tokens };
+}
+
+function normalizeDailyUsage(value: unknown): DailyUsage | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const totals = normalizeTokenTotals(value.totals);
+  if (!isValidDateKey(value.date) || !totals || !Array.isArray(value.models) || value.models.length > 300) {
+    return null;
+  }
+
+  const models = value.models.map(normalizeModelUsage);
+  if (models.some((model) => !model)) {
+    return null;
+  }
+
+  return {
+    date: value.date,
+    totals,
+    models: models as Array<{ model: string; tokens: TokenTotals }>,
+    displayValue: value.displayValue === undefined || isNonNegativeSafeInteger(value.displayValue) ? value.displayValue as number | undefined : undefined,
+  };
 }
 
 function rebuildProviderSnapshot(provider: ProviderId, byDay: DailyUsage[], sourceCount: number) {
@@ -97,19 +144,33 @@ function rebuildProviderSnapshot(provider: ProviderId, byDay: DailyUsage[], sour
   };
 }
 
-function isProviderSnapshot(value: unknown): boolean {
+function normalizeProviderSnapshot(value: unknown): { provider: ProviderId; byDay: DailyUsage[]; sourceCount: number } | null {
   if (!isRecord(value)) {
-    return false;
+    return null;
   }
 
   const provider = value.provider;
-  return (
-    (provider === 'claude' || provider === 'codex') &&
-    Array.isArray(value.byDay) &&
-    value.byDay.length <= 400 &&
-    value.byDay.every(isDailyUsage) &&
-    isNonNegativeSafeInteger(value.sourceCount)
-  );
+  if ((provider !== 'claude' && provider !== 'codex') || !Array.isArray(value.byDay) || value.byDay.length > 400) {
+    return null;
+  }
+
+  const byDay = value.byDay.map(normalizeDailyUsage);
+  if (byDay.some((day) => !day)) {
+    return null;
+  }
+
+  return {
+    provider,
+    byDay: (byDay as DailyUsage[]).map((day) => ({
+      ...day,
+      totals: normalizeTotalsForProvider(provider, day.totals),
+      models: day.models.map((model) => ({
+        ...model,
+        tokens: normalizeTotalsForProvider(provider, model.tokens),
+      })),
+    })),
+    sourceCount: isNonNegativeSafeInteger(value.sourceCount) ? value.sourceCount : 0,
+  };
 }
 
 function isPublicProfile(value: unknown): boolean {
@@ -148,13 +209,19 @@ function normalizeStoredSnapshot(value: unknown): UsageSnapshot | null {
     return null;
   }
 
-  const providers = value.providers.filter(isProviderSnapshot) as Array<{
+  const providers = value.providers.map(normalizeProviderSnapshot);
+
+  if (providers.some((provider) => !provider)) {
+    return null;
+  }
+
+  const parsedProviders = providers as Array<{
     provider: ProviderId;
     byDay: DailyUsage[];
     sourceCount: number;
   }>;
 
-  if (providers.length !== value.providers.length || new Set(providers.map((provider) => provider.provider)).size !== providers.length) {
+  if (new Set(parsedProviders.map((provider) => provider.provider)).size !== parsedProviders.length) {
     return null;
   }
 
@@ -175,7 +242,7 @@ function normalizeStoredSnapshot(value: unknown): UsageSnapshot | null {
       profileUrl: value.profile.profileUrl as string,
       xHandle: typeof value.profile.xHandle === 'string' ? value.profile.xHandle : undefined,
     },
-    providers: providers.map((provider) => rebuildProviderSnapshot(provider.provider, provider.byDay, provider.sourceCount)),
+    providers: parsedProviders.map((provider) => rebuildProviderSnapshot(provider.provider, provider.byDay, provider.sourceCount)),
   };
 }
 

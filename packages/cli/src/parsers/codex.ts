@@ -75,14 +75,15 @@ function normalizeUsage(value?: CodexUsagePayload): NormalizedUsage | null {
   const cache = value.cached_input_tokens ?? value.cache_read_input_tokens ?? 0;
   const output = value.output_tokens ?? 0;
   const reasoning = value.reasoning_output_tokens ?? 0;
-  const total = value.total_tokens ?? 0;
+  const providedTotal = value.total_tokens ?? 0;
+  const computedTotal = input + output + cache;
 
   return {
     input,
     cache,
     output,
     reasoning,
-    total: total > 0 ? total : input + output,
+    total: Math.max(providedTotal, computedTotal),
   };
 }
 

@@ -99,7 +99,12 @@ function parseTokenTotals(value: unknown): TokenTotals | null {
     return null;
   }
 
-  return { input, output, cache, total };
+  return {
+    input,
+    output,
+    cache,
+    total,
+  };
 }
 
 function parseModelUsage(value: unknown): ModelUsage | null {

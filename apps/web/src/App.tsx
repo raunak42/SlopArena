@@ -182,7 +182,7 @@ function xHandleToUrl(handle?: string): string | undefined {
   return `https://x.com/${normalizeHandle(handle)}`;
 }
 
-function normalizeTotals(value: unknown): TokenTotals {
+function normalizeTotals(value: unknown, provider?: ProviderId): TokenTotals {
   const record = isRecord(value) ? value : {};
   const input = asPositiveInteger(record.input, 0);
   const output = asPositiveInteger(record.output, 0);
@@ -190,31 +190,54 @@ function normalizeTotals(value: unknown): TokenTotals {
   const computedTotal = input + output + cache;
   const providedTotal = asPositiveInteger(record.total, computedTotal);
 
+  if (provider === 'claude' && cache > 0 && providedTotal === input + output) {
+    const nonCacheTotal = Math.max(0, providedTotal - cache);
+    const weightSum = input + output;
+    const nextInput = weightSum > 0 ? Math.round((input / weightSum) * nonCacheTotal) : nonCacheTotal;
+    const nextOutput = Math.max(0, nonCacheTotal - nextInput);
+
+    return {
+      input: nextInput,
+      output: nextOutput,
+      cache,
+      total: nextInput + nextOutput + cache,
+    };
+  }
+
+  if (provider === 'codex') {
+    return {
+      input,
+      output,
+      cache,
+      total: Math.max(computedTotal, providedTotal),
+    };
+  }
+
   return {
     input,
     output,
     cache,
-    total: Math.max(computedTotal, providedTotal),
+    total: providedTotal,
   };
 }
 
-function normalizeModelUsage(value: unknown, index: number): ModelUsage {
+function normalizeModelUsage(value: unknown, index: number, provider?: ProviderId): ModelUsage {
   const record = isRecord(value) ? value : {};
   return {
     model: asString(record.model, `unknown-model-${index + 1}`),
-    tokens: normalizeTotals(record.tokens),
+    tokens: normalizeTotals(record.tokens, provider),
   };
 }
 
-function normalizeDailyUsage(value: unknown, index: number): DailyUsage {
+function normalizeDailyUsage(value: unknown, index: number, provider?: ProviderId): DailyUsage {
   const record = isRecord(value) ? value : {};
   const fallbackDate = new Date(Date.now() - index * 86_400_000).toISOString().slice(0, 10);
   const displayValue = asNumber(record.displayValue, Number.NaN);
 
   return {
     date: asDateKey(record.date, fallbackDate),
-    totals: normalizeTotals(record.totals),
-    models: asArray(record.models).map((item, modelIndex) => normalizeModelUsage(item, modelIndex)),
+    totals: normalizeTotals(record.totals, provider),
+    models: asArray(record.models).map((item, modelIndex) => normalizeModelUsage(item, modelIndex, provider)),
     displayValue: Number.isFinite(displayValue) ? displayValue : undefined,
   };
 }
@@ -222,9 +245,9 @@ function normalizeDailyUsage(value: unknown, index: number): DailyUsage {
 function normalizeProviderSnapshot(value: unknown, index: number): ProviderSnapshot {
   const record = isRecord(value) ? value : {};
   const provider = asProviderId(record.provider, index % 2 === 0 ? 'claude' : 'codex');
-  const totals = normalizeTotals(record.totals);
-  const byModel = asArray(record.byModel).map((item, modelIndex) => normalizeModelUsage(item, modelIndex));
-  let byDay = asArray(record.byDay).map((item, dayIndex) => normalizeDailyUsage(item, dayIndex));
+  const totals = normalizeTotals(record.totals, provider);
+  const byModel = asArray(record.byModel).map((item, modelIndex) => normalizeModelUsage(item, modelIndex, provider));
+  let byDay = asArray(record.byDay).map((item, dayIndex) => normalizeDailyUsage(item, dayIndex, provider));
 
   if (!byDay.length && (totals.total > 0 || byModel.length > 0)) {
     byDay = [
@@ -419,9 +442,27 @@ function mergeProviderSnapshots(items: ProviderSnapshot[]): ProviderSnapshot {
 }
 
 function pickProvider(user: UserAggregate, provider: ProviderId | 'all', windowDays: WindowKey): ProviderSnapshot | null {
-  const snapshots = (provider === 'all' ? user.providers : user.providers.filter((item) => item.provider === provider)).map((item) =>
-    rebuildSnapshot(item.provider, filterByWindow(item.byDay, windowDays), item.sourceCount),
-  );
+  const sourceProviders = provider === 'all' ? user.providers : user.providers.filter((item) => item.provider === provider);
+
+  if (provider === 'all' && windowDays === 1) {
+    const latestActiveDate = sourceProviders
+      .flatMap((item) => item.byDay)
+      .filter((day) => day.totals.total > 0 || (day.displayValue ?? 0) > 0)
+      .sort((left, right) => left.date.localeCompare(right.date))
+      .at(-1)?.date;
+
+    if (!latestActiveDate) {
+      return null;
+    }
+
+    const snapshots = sourceProviders.map((item) =>
+      rebuildSnapshot(item.provider, item.byDay.filter((day) => day.date === latestActiveDate), item.sourceCount),
+    );
+    const nonEmpty = snapshots.filter((item) => item.byDay.length > 0 || item.totals.total > 0 || item.activityDays > 0);
+    return nonEmpty.length ? mergeProviderSnapshots(nonEmpty) : null;
+  }
+
+  const snapshots = sourceProviders.map((item) => rebuildSnapshot(item.provider, filterByWindow(item.byDay, windowDays), item.sourceCount));
 
   const nonEmpty = snapshots.filter((item) => item.byDay.length > 0 || item.totals.total > 0 || item.activityDays > 0);
   if (!nonEmpty.length) return null;
@@ -1192,7 +1233,7 @@ export default function App() {
         </section>
 
         <section className="mt-14 rounded-sm border border-border/80 bg-card/80 backdrop-blur lg:overflow-visible overflow-hidden">
-          <div className="grid items-start lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.9fr)] lg:divide-x lg:divide-border/70">
+          <div className="grid items-start lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.9fr)]">
             <div>
               <div className="flex flex-col gap-5 border-b border-border/70 px-6 py-5">
                 <div className="flex items-center gap-2.5">
@@ -1211,6 +1252,27 @@ export default function App() {
 
                 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:items-end">
                   <label className="flex flex-col gap-1">
+                    <span className="window-filter-title flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.18em]">
+                      <span>Window</span>
+                    </span>
+                    <span className="window-filter-spotlight relative">
+                      <select
+                        value={windowDays}
+                        onChange={(event) => setWindowDays(Number(event.target.value) as WindowKey)}
+                        aria-label="Leaderboard time window"
+                        className="window-filter-select h-10 min-w-0 w-full appearance-none rounded-sm border border-border bg-background px-3.5 pr-9 text-sm outline-none ring-0 transition focus:border-ring"
+                      >
+                        {windows.map((item) => (
+                          <option key={item} value={item}>
+                            {formatWindowLabel(item)}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="window-filter-chevron pointer-events-none absolute right-3 top-1/2 size-4" />
+                    </span>
+                  </label>
+
+                  <label className="flex flex-col gap-1">
                     <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Metric</span>
                     <span className="relative">
                       <select
@@ -1222,25 +1284,6 @@ export default function App() {
                         {metrics.map((item) => (
                           <option key={item} value={item}>
                             {item[0].toUpperCase() + item.slice(1)}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                    </span>
-                  </label>
-
-                  <label className="flex flex-col gap-1">
-                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Window</span>
-                    <span className="relative">
-                      <select
-                        value={windowDays}
-                        onChange={(event) => setWindowDays(Number(event.target.value) as WindowKey)}
-                        aria-label="Leaderboard time window"
-                        className="h-10 min-w-0 w-full appearance-none rounded-sm border border-border bg-background px-3.5 pr-9 text-sm outline-none ring-0 transition focus:border-ring"
-                      >
-                        {windows.map((item) => (
-                          <option key={item} value={item}>
-                            {formatWindowLabel(item)}
                           </option>
                         ))}
                       </select>
@@ -1448,7 +1491,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="hidden border-t border-border/70 lg:sticky lg:top-0 lg:block lg:self-start lg:border-t-0">
+            <div className="hidden border-t border-border/70 lg:sticky lg:top-0 lg:block lg:self-start lg:border-t-0 lg:border-l lg:border-border/70">
               <div
                 key={selected ? `${selected.id}:${currentPage}:${metric}:${provider}:${windowDays}` : `empty:${currentPage}:${metric}:${provider}:${windowDays}`}
                 ref={rightPanelScrollRef}
