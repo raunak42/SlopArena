@@ -10,13 +10,31 @@ import {
   type TokenTotals,
   type UserAggregate,
 } from '@sloparena/shared';
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  ChevronDown,
+  Copy,
+  MoonStar,
+  RefreshCw,
+  SunMedium,
+  Terminal,
+} from 'lucide-react';
+import { Button } from './components/ui/button';
+import { Badge } from './components/ui/badge';
+import { Card, CardContent } from './components/ui/card';
+import { Input } from './components/ui/input';
+import { cn } from './lib/utils';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'https://usageboard-api-production.up.railway.app';
+const COMMAND = 'npx sloparena go';
 const providers: Array<ProviderId | 'all'> = ['all', 'claude', 'codex'];
 const metrics = ['total', 'input', 'output', 'cache'] as const;
+const windows = [30, 90, 365] as const;
 
 type MetricKey = (typeof metrics)[number];
-type ThemeKey = 'dark' | 'light';
+type WindowKey = (typeof windows)[number];
+type ThemeKey = 'light' | 'dark';
 
 interface LeaderboardRow {
   user: UserAggregate;
@@ -35,96 +53,29 @@ interface LeaderboardRow {
   metricValue: number;
   totals: TokenTotals;
   summary: ProviderSnapshot;
-}
-
-function metricValue(totals: TokenTotals, metric: MetricKey): number {
-  return totals[metric];
-}
-
-function mergeProviders(items: ProviderSnapshot[]): ProviderSnapshot {
-  const totals = emptyTotals();
-  const modelMap = new Map<string, TokenTotals>();
-  const dayMap = new Map<string, { totals: TokenTotals; models: Map<string, TokenTotals>; displayValue: number }>();
-  let sourceCount = 0;
-
-  for (const item of items) {
-    addTotals(totals, item.totals);
-    sourceCount += item.sourceCount;
-
-    for (const model of item.byModel) {
-      const current = modelMap.get(model.model) ?? emptyTotals();
-      addTotals(current, model.tokens);
-      modelMap.set(model.model, current);
-    }
-
-    for (const day of item.byDay) {
-      const currentDay = dayMap.get(day.date) ?? {
-        totals: emptyTotals(),
-        models: new Map<string, TokenTotals>(),
-        displayValue: 0,
-      };
-
-      addTotals(currentDay.totals, day.totals);
-      currentDay.displayValue += day.displayValue ?? 0;
-
-      for (const model of day.models) {
-        const currentModel = currentDay.models.get(model.model) ?? emptyTotals();
-        addTotals(currentModel, model.tokens);
-        currentDay.models.set(model.model, currentModel);
-      }
-
-      dayMap.set(day.date, currentDay);
-    }
-  }
-
-  const byDay: DailyUsage[] = [...dayMap.entries()]
-    .map(([date, value]) => ({
-      date,
-      totals: value.totals,
-      models: sortModelUsage([...value.models.entries()].map(([model, tokens]) => ({ model, tokens }))),
-      displayValue: value.displayValue > 0 ? value.displayValue : undefined,
-    }))
-    .sort((left, right) => left.date.localeCompare(right.date));
-
-  return {
-    provider: 'claude',
-    totals,
-    byModel: sortModelUsage([...modelMap.entries()].map(([model, tokens]) => ({ model, tokens }))),
-    byDay,
-    sourceCount,
-    activityDays: byDay.filter((day) => day.totals.total > 0 || day.displayValue).length,
-  };
-}
-
-function pickProvider(user: UserAggregate, provider: ProviderId | 'all'): ProviderSnapshot | null {
-  if (provider === 'all') {
-    return user.providers.length > 0 ? mergeProviders(user.providers) : null;
-  }
-  return user.providers.find((item) => item.provider === provider) ?? null;
+  growth: number;
 }
 
 function formatNumber(value: number): string {
-  return new Intl.NumberFormat('en-US').format(value);
+  return new Intl.NumberFormat('en-US').format(Math.round(value));
 }
 
-function formatCompactNumber(value: number): string {
+function formatCompact(value: number): string {
   return new Intl.NumberFormat('en-US', {
     notation: 'compact',
     maximumFractionDigits: value >= 1_000_000 ? 1 : 0,
   }).format(value);
 }
 
-function formatDate(value: string): string {
-  return new Date(value).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+function formatPercent(value: number): string {
+  const rounded = Math.round(value * 100);
+  if (rounded > 0) return `+${rounded}%`;
+  if (rounded < 0) return `${rounded}%`;
+  return '0%';
 }
 
-function formatPercent(value: number): string {
-  return `${Math.round(value * 100)}%`;
+function metricValue(totals: TokenTotals, metric: MetricKey): number {
+  return totals[metric];
 }
 
 function githubHandleToUrl(handle: string): string {
@@ -132,30 +83,129 @@ function githubHandleToUrl(handle: string): string {
 }
 
 function xHandleToUrl(handle?: string): string | undefined {
-  if (!handle) {
-    return undefined;
-  }
+  if (!handle) return undefined;
   return `https://x.com/${handle.replace(/^@/, '')}`;
 }
 
 function getThemePreference(): ThemeKey {
-  if (typeof window === 'undefined') {
-    return 'dark';
-  }
-
+  if (typeof window === 'undefined') return 'dark';
   const saved = window.localStorage.getItem('sloparena-theme');
-  if (saved === 'light' || saved === 'dark') {
-    return saved;
-  }
-
-  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  if (saved === 'light' || saved === 'dark') return saved;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-function rankTone(rank: number): string {
-  if (rank === 1) return 'gold';
-  if (rank === 2) return 'silver';
-  if (rank === 3) return 'bronze';
-  return 'plain';
+function rebuildSnapshot(provider: ProviderId, byDay: DailyUsage[], sourceCount: number): ProviderSnapshot {
+  const totals = emptyTotals();
+  const modelMap = new Map<string, TokenTotals>();
+
+  for (const day of byDay) {
+    addTotals(totals, day.totals);
+    for (const model of day.models) {
+      const current = modelMap.get(model.model) ?? emptyTotals();
+      addTotals(current, model.tokens);
+      modelMap.set(model.model, current);
+    }
+  }
+
+  return {
+    provider,
+    totals,
+    byDay: [...byDay].sort((left, right) => left.date.localeCompare(right.date)),
+    byModel: sortModelUsage([...modelMap.entries()].map(([model, tokens]) => ({ model, tokens }))),
+    sourceCount,
+    activityDays: byDay.filter((day) => day.totals.total > 0 || day.displayValue).length,
+  };
+}
+
+function dateDaysAgo(daysAgo: number): Date {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() - daysAgo);
+  return date;
+}
+
+function filterByWindow(byDay: DailyUsage[], days: number): DailyUsage[] {
+  if (days >= 365) return byDay;
+  const cutoff = dateDaysAgo(days - 1).getTime();
+  return byDay.filter((day) => new Date(`${day.date}T00:00:00`).getTime() >= cutoff);
+}
+
+function filterRange(byDay: DailyUsage[], startDaysAgo: number, endDaysAgo: number): DailyUsage[] {
+  const start = dateDaysAgo(startDaysAgo).getTime();
+  const end = dateDaysAgo(endDaysAgo).getTime();
+  return byDay.filter((day) => {
+    const timestamp = new Date(`${day.date}T00:00:00`).getTime();
+    return timestamp >= start && timestamp <= end;
+  });
+}
+
+function mergeProviderSnapshots(items: ProviderSnapshot[]): ProviderSnapshot {
+  if (items.length === 1) {
+    return items[0];
+  }
+
+  const dayMap = new Map<string, { totals: TokenTotals; models: Map<string, TokenTotals>; displayValue?: number }>();
+  let sourceCount = 0;
+
+  for (const item of items) {
+    sourceCount += item.sourceCount;
+    for (const day of item.byDay) {
+      const current = dayMap.get(day.date) ?? {
+        totals: emptyTotals(),
+        models: new Map<string, TokenTotals>(),
+        displayValue: 0,
+      };
+      addTotals(current.totals, day.totals);
+      current.displayValue = (current.displayValue ?? 0) + (day.displayValue ?? 0);
+      for (const model of day.models) {
+        const modelTotals = current.models.get(model.model) ?? emptyTotals();
+        addTotals(modelTotals, model.tokens);
+        current.models.set(model.model, modelTotals);
+      }
+      dayMap.set(day.date, current);
+    }
+  }
+
+  const byDay: DailyUsage[] = [...dayMap.entries()].map(([date, value]) => ({
+    date,
+    totals: value.totals,
+    models: sortModelUsage([...value.models.entries()].map(([model, tokens]) => ({ model, tokens }))),
+    displayValue: value.displayValue ? value.displayValue : undefined,
+  }));
+
+  return rebuildSnapshot('claude', byDay, sourceCount);
+}
+
+function pickProvider(user: UserAggregate, provider: ProviderId | 'all', windowDays: WindowKey): ProviderSnapshot | null {
+  const snapshots = (provider === 'all' ? user.providers : user.providers.filter((item) => item.provider === provider)).map((item) =>
+    rebuildSnapshot(item.provider, filterByWindow(item.byDay, windowDays), item.sourceCount),
+  );
+
+  const nonEmpty = snapshots.filter((item) => item.byDay.length > 0 || item.totals.total > 0 || item.activityDays > 0);
+  if (!nonEmpty.length) return null;
+  return provider === 'all' ? mergeProviderSnapshots(nonEmpty) : nonEmpty[0];
+}
+
+function growthForUser(user: UserAggregate, provider: ProviderId | 'all'): number {
+  const snapshots = provider === 'all' ? user.providers : user.providers.filter((item) => item.provider === provider);
+  if (!snapshots.length) return 0;
+
+  const combined = provider === 'all' ? mergeProviderSnapshots(snapshots) : snapshots[0];
+  const recent = rebuildSnapshot(combined.provider, filterRange(combined.byDay, 29, 0), combined.sourceCount).totals.total;
+  const previous = rebuildSnapshot(combined.provider, filterRange(combined.byDay, 59, 30), combined.sourceCount).totals.total;
+
+  if (previous === 0 && recent === 0) return 0;
+  if (previous === 0) return 1;
+  return (recent - previous) / previous;
+}
+
+function formatUpdatedAt(value: string): string {
+  return new Date(value).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 function rankGlyph(rank: number): string {
@@ -165,48 +215,36 @@ function rankGlyph(rank: number): string {
   return String(rank);
 }
 
-function providerTone(provider: ProviderId): string {
-  return provider === 'claude' ? 'var(--claude)' : 'var(--codex)';
-}
-
-function ThemeToggle({ theme, onToggle }: { theme: ThemeKey; onToggle: () => void }) {
-  return (
-    <button type="button" className="utility-button" onClick={onToggle}>
-      <span className="utility-icon">{theme === 'dark' ? '◐' : '◑'}</span>
-      {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-    </button>
-  );
-}
-
-function RefreshButton({ loading, onClick }: { loading: boolean; onClick: () => void }) {
-  return (
-    <button type="button" className="refresh-button" onClick={onClick} disabled={loading}>
-      <span className={`refresh-wheel${loading ? ' spinning' : ''}`}>↻</span>
-      {loading ? 'Refreshing…' : 'Refresh board'}
-    </button>
-  );
-}
-
 function Avatar({ name, url }: { name: string; url?: string }) {
   if (url) {
-    return <img className="avatar" src={url} alt={name} referrerPolicy="no-referrer" />;
+    return <img className="size-11 rounded-full border object-cover" src={url} alt={name} referrerPolicy="no-referrer" />;
   }
 
-  return <div className="avatar avatar-fallback">{name.slice(0, 1).toUpperCase()}</div>;
+  return (
+    <div className="flex size-11 items-center justify-center rounded-full border bg-muted text-sm font-medium">
+      {name.slice(0, 1).toUpperCase()}
+    </div>
+  );
 }
 
-function HandleCluster({ githubHandle, githubUrl, xHandle, xUrl }: { githubHandle: string; githubUrl: string; xHandle?: string; xUrl?: string }) {
+function CopyCommandButton({ command }: { command: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  }
+
   return (
-    <div className="handle-cluster">
-      <a href={githubUrl} target="_blank" rel="noreferrer" className="handle-pill github">
-        {githubHandle}
-      </a>
-      {xHandle && xUrl ? (
-        <a href={xUrl} target="_blank" rel="noreferrer" className="handle-pill x">
-          @{xHandle}
-        </a>
-      ) : null}
-    </div>
+    <Button type="button" variant="outline" className="h-11 gap-2 rounded-2xl" onClick={handleCopy}>
+      <Copy className="size-4" />
+      {copied ? 'Copied' : 'Copy'}
+    </Button>
   );
 }
 
@@ -216,13 +254,13 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [provider, setProvider] = useState<ProviderId | 'all'>('all');
   const [metric, setMetric] = useState<MetricKey>('total');
-  const [query, setQuery] = useState('');
+  const [windowDays, setWindowDays] = useState<WindowKey>(365);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
   const [theme, setTheme] = useState<ThemeKey>(getThemePreference);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
+    document.documentElement.classList.toggle('dark', theme === 'dark');
     window.localStorage.setItem('sloparena-theme', theme);
   }, [theme]);
 
@@ -238,9 +276,8 @@ export default function App() {
           signal: controller.signal,
         });
         if (!response.ok) {
-          throw new Error(`Failed to load dashboard (${response.status})`);
+          throw new Error(`Failed to load leaderboard (${response.status})`);
         }
-
         const payload = (await response.json()) as DashboardData;
         if (!cancelled) {
           setData(payload);
@@ -248,12 +285,7 @@ export default function App() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          const message = loadError instanceof Error && loadError.name === 'AbortError'
-            ? 'The board took too long to answer. Try refreshing it again.'
-            : loadError instanceof Error
-              ? loadError.message
-              : String(loadError);
-          setError(message);
+          setError(loadError instanceof Error ? loadError.message : String(loadError));
         }
       } finally {
         window.clearTimeout(timeout);
@@ -271,17 +303,13 @@ export default function App() {
     };
   }, [reloadTick]);
 
-  const leaderboardRows = useMemo<LeaderboardRow[]>(() => {
-    if (!data) {
-      return [];
-    }
+  const rows = useMemo<LeaderboardRow[]>(() => {
+    if (!data) return [];
 
     return data.users
       .map((user) => {
-        const summary = pickProvider(user, provider);
-        if (!summary) {
-          return null;
-        }
+        const summary = pickProvider(user, provider, windowDays);
+        if (!summary) return null;
 
         return {
           user,
@@ -300,449 +328,351 @@ export default function App() {
           metricValue: metricValue(summary.totals, metric),
           totals: summary.totals,
           summary,
+          growth: growthForUser(user, provider),
         };
       })
       .filter((row): row is LeaderboardRow => Boolean(row))
-      .filter((row) => `${row.displayName} ${row.githubHandle} ${row.xHandle ?? ''} ${row.topModel}`.toLowerCase().includes(query.toLowerCase()))
       .sort((left, right) => right.metricValue - left.metricValue || right.totals.total - left.totals.total || left.displayName.localeCompare(right.displayName))
       .map((row, index) => ({ ...row, rank: index + 1 }));
-  }, [data, metric, provider, query]);
+  }, [data, metric, provider, windowDays]);
 
   useEffect(() => {
-    if (!leaderboardRows.length) {
+    if (!rows.length) {
       setSelectedUserId(null);
       return;
     }
-
-    if (!selectedUserId || !leaderboardRows.some((row) => row.id === selectedUserId)) {
-      setSelectedUserId(leaderboardRows[0].id);
+    if (!selectedUserId || !rows.some((row) => row.id === selectedUserId)) {
+      setSelectedUserId(rows[0].id);
     }
-  }, [leaderboardRows, selectedUserId]);
+  }, [rows, selectedUserId]);
 
-  const selectedRow = useMemo(
-    () => leaderboardRows.find((row) => row.id === selectedUserId) ?? leaderboardRows[0] ?? null,
-    [leaderboardRows, selectedUserId],
-  );
+  const selected = rows.find((row) => row.id === selectedUserId) ?? rows[0] ?? null;
 
-  const maxMetric = leaderboardRows[0]?.metricValue ?? 1;
-  const generatedAt = data?.generatedAt ? formatDate(data.generatedAt) : '—';
-  const totalUsage = useMemo(() => {
-    if (!data) {
-      return emptyTotals();
-    }
-
-    return data.users.reduce((sum, user) => {
-      const summary = pickProvider(user, provider);
-      if (summary) {
-        addTotals(sum, summary.totals);
-      }
-      return sum;
-    }, emptyTotals());
-  }, [data, provider]);
-
-  const selectedProviderMix = useMemo(() => {
-    if (!selectedRow) {
-      return [] as Array<{ provider: ProviderId; total: number; share: number }>;
-    }
-
-    const total = selectedRow.user.providers.reduce((sum, item) => sum + item.totals.total, 0) || 1;
-    return selectedRow.user.providers.map((item) => ({
-      provider: item.provider,
-      total: item.totals.total,
-      share: item.totals.total / total,
-    }));
-  }, [selectedRow]);
-
-  const selectedTokenMix = useMemo(() => {
-    if (!selectedRow) {
-      return [] as Array<{ label: string; value: number; share: number }>;
-    }
-
-    const total = selectedRow.summary.totals.total || 1;
+  const selectedProviderBars = useMemo(() => {
+    if (!selected) return [] as Array<{ label: string; value: number; percent: number }>;
+    const total = selected.summary.totals.total || 1;
     return [
-      { label: 'Input', value: selectedRow.summary.totals.input, share: selectedRow.summary.totals.input / total },
-      { label: 'Output', value: selectedRow.summary.totals.output, share: selectedRow.summary.totals.output / total },
-      { label: 'Cache', value: selectedRow.summary.totals.cache, share: selectedRow.summary.totals.cache / total },
+      { label: 'Input', value: selected.summary.totals.input, percent: selected.summary.totals.input / total },
+      { label: 'Output', value: selected.summary.totals.output, percent: selected.summary.totals.output / total },
+      { label: 'Cache', value: selected.summary.totals.cache, percent: selected.summary.totals.cache / total },
     ];
-  }, [selectedRow]);
+  }, [selected]);
 
   const selectedModels = useMemo(() => {
-    if (!selectedRow) {
-      return [] as Array<{ model: string; value: number; share: number }>;
-    }
-
-    return selectedRow.summary.byModel.slice(0, 6).map((model) => ({
-      model: model.model,
-      value: metricValue(model.tokens, metric),
-      share: selectedRow.metricValue > 0 ? metricValue(model.tokens, metric) / selectedRow.metricValue : 0,
+    if (!selected) return [] as Array<{ label: string; value: number; percent: number }>;
+    const max = selected.summary.byModel[0] ? metricValue(selected.summary.byModel[0].tokens, metric) : 1;
+    return selected.summary.byModel.slice(0, 5).map((item) => ({
+      label: item.model,
+      value: metricValue(item.tokens, metric),
+      percent: max > 0 ? metricValue(item.tokens, metric) / max : 0,
     }));
-  }, [metric, selectedRow]);
+  }, [metric, selected]);
 
-  const selectedDays = useMemo(() => {
-    if (!selectedRow) {
-      return [] as Array<{ date: string; value: number; normalized: number; label: string }>;
-    }
-
-    const recent = selectedRow.summary.byDay.slice(-12);
-    const values = recent.map((day) => metricValue(day.totals, metric) || day.displayValue || 0);
-    const max = Math.max(...values, 1);
-
-    return recent.map((day) => {
-      const raw = metricValue(day.totals, metric) || day.displayValue || 0;
-      const normalized = Math.max(0.12, Math.log10(raw + 1) / Math.log10(max + 1 || 10));
-      return {
-        date: day.date,
-        value: raw,
-        normalized,
-        label: new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-      };
-    });
-  }, [metric, selectedRow]);
-
-  const donutStyle = useMemo(() => {
-    if (!selectedProviderMix.length) {
-      return { background: 'var(--panel-subtle)' };
-    }
-
-    if (selectedProviderMix.length === 1) {
-      return { background: providerTone(selectedProviderMix[0].provider) };
-    }
-
-    const first = selectedProviderMix[0];
-    const breakpoint = `${(first.share * 360).toFixed(2)}deg`;
-    return {
-      background: `conic-gradient(${providerTone(first.provider)} 0deg ${breakpoint}, ${providerTone(selectedProviderMix[1].provider)} ${breakpoint} 360deg)`,
-    };
-  }, [selectedProviderMix]);
+  const totalMetric = useMemo(() => rows.reduce((sum, row) => sum + row.metricValue, 0), [rows]);
 
   return (
-    <main className="arena-shell">
-      <section className="hero-wrap">
-        <div className="hero-topline">
-          <div className="brand-lockup">
-            <span className="brand-badge">✦</span>
-            <span className="brand-wordmark">SlopArena</span>
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.07),_transparent_35%),linear-gradient(to_bottom,_transparent,_rgba(0,0,0,0.04))] dark:bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.045),_transparent_32%),linear-gradient(to_bottom,_transparent,_rgba(255,255,255,0.02))]" />
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+        <header className="flex items-center justify-between pb-8">
+          <div className="inline-flex items-center gap-3 text-sm font-medium">
+            <div className="flex size-8 items-center justify-center rounded-full border bg-foreground text-background">S</div>
+            <span>SlopArena</span>
           </div>
-          <ThemeToggle
-            theme={theme}
-            onToggle={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
-          />
-        </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+          >
+            {theme === 'dark' ? <SunMedium className="size-4" /> : <MoonStar className="size-4" />}
+          </Button>
+        </header>
 
-        <div className="hero-copy">
-          <p className="hero-kicker">verified usage, public shame, immaculate receipts</p>
-          <h1>The arena for people who treat terminals like a sport.</h1>
-          <p className="hero-body">
-            GitHub-verified builders publish 365-day Claude Code and Codex snapshots from the CLI. No fake dashboards. No hand-entered vanity numbers. Just local logs, ranked in public.
+        <section className="mx-auto flex w-full max-w-5xl flex-col items-center text-center">
+          <Badge variant="muted" className="rounded-full px-3 py-1 font-mono text-[11px] tracking-[0.18em] uppercase">
+            cli-native leaderboard · github-verified
+          </Badge>
+          <h1 className="mt-6 max-w-5xl text-balance font-sans text-5xl font-medium tracking-[-0.08em] sm:text-6xl lg:text-8xl">
+            Welcome to the Slop Arena
+          </h1>
+          <p className="mt-5 max-w-2xl text-pretty text-base text-muted-foreground sm:text-lg">
+            Publish your Claude Code and Codex receipts from the terminal, get ranked in public, and watch who is actually carrying the token economy.
           </p>
-        </div>
 
-        <div className="command-rack">
-          <label className="command-search">
-            <span className="search-icon">⌕</span>
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder='Search @handle, x handle, or model'
-              aria-label="Search leaderboard"
-            />
-          </label>
-
-          <div className="hero-actions">
-            <RefreshButton loading={loading} onClick={() => setReloadTick((value) => value + 1)} />
-            <a className="ghost-action" href="https://www.npmjs.com/package/sloparena" target="_blank" rel="noreferrer">
-              See the CLI
-            </a>
+          <div className="mt-10 flex w-full max-w-3xl flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1">
+              <Terminal className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input readOnly value={COMMAND} className="h-12 rounded-2xl pl-11 font-mono text-sm" />
+            </div>
+            <CopyCommandButton command={COMMAND} />
           </div>
-        </div>
 
-        <div className="hero-meta">
-          <span>365-day window</span>
-          <span>GitHub-verified identity</span>
-          <span>Optional X flex</span>
-          <span>Last refresh {generatedAt}</span>
-        </div>
-      </section>
-
-      <section className="filters-row">
-        <div className="filter-cluster">
-          <span className="cluster-label">Provider</span>
-          <div className="segmented-control">
-            {providers.map((item) => (
-              <button
-                key={item}
-                type="button"
-                className={provider === item ? 'active' : ''}
-                onClick={() => setProvider(item)}
-              >
-                {item === 'all' ? 'All traffic' : item}
-              </button>
-            ))}
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+            <span>GitHub login</span>
+            <span className="hidden sm:inline">·</span>
+            <span>365-day snapshots</span>
+            <span className="hidden sm:inline">·</span>
+            <span>Local logs only</span>
+            <span className="hidden sm:inline">·</span>
+            <span>Manual refresh</span>
           </div>
-        </div>
-
-        <div className="filter-cluster">
-          <span className="cluster-label">Metric</span>
-          <div className="segmented-control">
-            {metrics.map((item) => (
-              <button
-                key={item}
-                type="button"
-                className={metric === item ? 'active' : ''}
-                onClick={() => setMetric(item)}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="totals-chipline">
-          <div className="totals-chip">
-            <span>tracked operators</span>
-            <strong>{formatNumber(data?.activeUsers ?? 0)}</strong>
-          </div>
-          <div className="totals-chip">
-            <span>machines</span>
-            <strong>{formatNumber(data?.activeMachines ?? 0)}</strong>
-          </div>
-          <div className="totals-chip emphasis">
-            <span>{metric}</span>
-            <strong>{formatCompactNumber(metricValue(totalUsage, metric))}</strong>
-          </div>
-        </div>
-      </section>
-
-      {error ? (
-        <section className="status-banner error-banner">
-          <div>{error}</div>
-          <button type="button" onClick={() => setReloadTick((value) => value + 1)}>
-            Try again
-          </button>
         </section>
-      ) : null}
 
-      <section className="arena-grid">
-        <section className="leaderboard-slab">
-          <div className="slab-header">
-            <div>
-              <p className="slab-kicker">leaderboard</p>
-              <h2>Top terminal operators</h2>
-            </div>
-            <p className="slab-note">Click a row to inspect the breakdown.</p>
-          </div>
-
-          <div className="board-table">
-            <div className="board-head">
-              <span>#</span>
-              <span>Operator</span>
-              <span>{metric}</span>
-              <span>Signal</span>
-            </div>
-
-            {leaderboardRows.length === 0 && !loading ? (
-              <article className="board-row empty-row">
-                <div className="empty-copy">
-                  <strong>No one has posted a usable snapshot yet.</strong>
-                  <span>Run <code>npx sloparena go</code> from the terminal to seed the board.</span>
+        <section className="mt-16">
+          <Card className="overflow-hidden rounded-[28px] border-border/80 bg-card/80 backdrop-blur">
+            <CardContent className="p-0">
+              <div className="flex flex-col gap-4 border-b border-border/70 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-3xl font-medium tracking-[-0.06em]">Leaderboard</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {rows.length ? `${formatCompact(totalMetric)} ${metric} across ${rows.length} verified builders.` : 'No ranked builders yet.'}
+                  </p>
                 </div>
-              </article>
-            ) : null}
 
-            {leaderboardRows.map((row) => {
-              const share = maxMetric > 0 ? row.metricValue / maxMetric : 0;
-              const active = selectedRow?.id === row.id;
-              return (
-                <button
-                  key={row.id}
-                  type="button"
-                  className={`board-row${active ? ' selected' : ''}`}
-                  onClick={() => setSelectedUserId(row.id)}
-                >
-                  <div className={`rank-pill ${rankTone(row.rank)}`}>{rankGlyph(row.rank)}</div>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <label className="relative">
+                    <select
+                      value={metric}
+                      onChange={(event) => setMetric(event.target.value as MetricKey)}
+                      className="h-11 min-w-36 appearance-none rounded-2xl border border-border bg-background px-4 pr-10 text-sm outline-none ring-0 transition focus:border-ring"
+                    >
+                      {metrics.map((item) => (
+                        <option key={item} value={item}>
+                          {item[0].toUpperCase() + item.slice(1)}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  </label>
 
-                  <div className="operator-cell">
-                    <Avatar name={row.displayName} url={row.avatarUrl} />
-                    <div className="operator-copy">
-                      <div className="operator-line">
-                        <strong>{row.displayName}</strong>
-                        <span className="machine-chip">{row.machines} machine{row.machines === 1 ? '' : 's'}</span>
+                  <label className="relative">
+                    <select
+                      value={windowDays}
+                      onChange={(event) => setWindowDays(Number(event.target.value) as WindowKey)}
+                      className="h-11 min-w-36 appearance-none rounded-2xl border border-border bg-background px-4 pr-10 text-sm outline-none ring-0 transition focus:border-ring"
+                    >
+                      {windows.map((item) => (
+                        <option key={item} value={item}>
+                          {item} days
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  </label>
+
+                  <label className="relative">
+                    <select
+                      value={provider}
+                      onChange={(event) => setProvider(event.target.value as ProviderId | 'all')}
+                      className="h-11 min-w-40 appearance-none rounded-2xl border border-border bg-background px-4 pr-10 text-sm outline-none ring-0 transition focus:border-ring"
+                    >
+                      {providers.map((item) => (
+                        <option key={item} value={item}>
+                          {item === 'all' ? 'All providers' : item}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  </label>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 rounded-2xl"
+                    onClick={() => setReloadTick((value) => value + 1)}
+                    disabled={loading}
+                  >
+                    <RefreshCw className={cn('size-4', loading && 'animate-spin')} />
+                    {loading ? 'Refreshing' : 'Refresh'}
+                  </Button>
+                </div>
+              </div>
+
+              {error ? (
+                <div className="border-b border-border/70 bg-destructive/5 px-6 py-3 text-sm text-destructive">
+                  {error}
+                </div>
+              ) : null}
+
+              <div className="hidden grid-cols-[72px,minmax(0,1.7fr),minmax(0,1fr),180px,140px] gap-4 px-6 py-5 text-sm text-muted-foreground md:grid">
+                <span>#</span>
+                <span>Builder</span>
+                <span>Identity</span>
+                <span className="text-right">{metric[0].toUpperCase() + metric.slice(1)}</span>
+                <span className="text-right">30D Growth</span>
+              </div>
+
+              <div>
+                {rows.length === 0 && !loading ? (
+                  <div className="px-6 py-10 text-center">
+                    <p className="text-base font-medium">No one has submitted a ranked snapshot yet.</p>
+                    <p className="mt-2 text-sm text-muted-foreground">Copy the command above and seed the board.</p>
+                  </div>
+                ) : null}
+
+                {rows.map((row) => {
+                  const positive = row.growth > 0;
+                  const negative = row.growth < 0;
+                  const selectedRow = selectedUserId === row.id;
+
+                  return (
+                    <button
+                      key={row.id}
+                      type="button"
+                      onClick={() => setSelectedUserId(row.id)}
+                      className={cn(
+                        'grid w-full gap-4 border-t border-border/70 px-6 py-5 text-left transition-colors',
+                        'md:grid-cols-[72px,minmax(0,1.7fr),minmax(0,1fr),180px,140px] md:items-center',
+                        selectedRow && 'bg-accent/40',
+                      )}
+                    >
+                      <div className="flex items-center gap-3 text-xl font-medium tracking-[-0.04em] md:text-base md:font-normal md:tracking-normal">
+                        <span className="inline-flex min-w-10 items-center justify-start font-mono text-base text-foreground">{rankGlyph(row.rank)}</span>
                       </div>
-                      <HandleCluster
-                        githubHandle={row.githubHandle}
-                        githubUrl={row.githubUrl}
-                        xHandle={row.xHandle}
-                        xUrl={row.xUrl}
-                      />
-                      <p className="operator-subline">Top model: {row.topModel}</p>
-                    </div>
-                  </div>
 
-                  <div className="value-cell">
-                    <strong>{formatNumber(row.metricValue)}</strong>
-                    <span>updated {formatDate(row.lastSubmitted)}</span>
-                  </div>
-
-                  <div className="signal-cell">
-                    <div className="signal-track">
-                      <span className="signal-fill" style={{ width: `${Math.max(6, share * 100)}%` }} />
-                    </div>
-                    <span>{formatPercent(share)}</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        <aside className="detail-rail">
-          {selectedRow ? (
-            <div className="detail-stack">
-              <section className="detail-card spotlight-card">
-                <div className="spotlight-head">
-                  <div className="spotlight-badge">selected operator</div>
-                  <div className={`rank-ribbon ${rankTone(selectedRow.rank)}`}>rank #{selectedRow.rank}</div>
-                </div>
-
-                <div className="spotlight-identity">
-                  <Avatar name={selectedRow.displayName} url={selectedRow.avatarUrl} />
-                  <div>
-                    <h3>{selectedRow.displayName}</h3>
-                    <HandleCluster
-                      githubHandle={selectedRow.githubHandle}
-                      githubUrl={selectedRow.githubUrl}
-                      xHandle={selectedRow.xHandle}
-                      xUrl={selectedRow.xUrl}
-                    />
-                  </div>
-                </div>
-
-                <div className="spotlight-metric">
-                  <span>{metric}</span>
-                  <strong>{formatNumber(selectedRow.metricValue)}</strong>
-                </div>
-
-                <p className="spotlight-blurb">
-                  {selectedRow.githubHandle} is currently leaning hardest on <em>{selectedRow.topModel}</em>, spread across {selectedRow.activityDays} active days and {selectedRow.machines} machine{selectedRow.machines === 1 ? '' : 's'}.
-                </p>
-
-                <div className="micro-stats">
-                  <div>
-                    <span>total traffic</span>
-                    <strong>{formatCompactNumber(selectedRow.summary.totals.total)}</strong>
-                  </div>
-                  <div>
-                    <span>activity days</span>
-                    <strong>{formatNumber(selectedRow.activityDays)}</strong>
-                  </div>
-                  <div>
-                    <span>last seen</span>
-                    <strong>{formatDate(selectedRow.lastSubmitted)}</strong>
-                  </div>
-                </div>
-              </section>
-
-              <section className="detail-card analysis-card">
-                <div className="card-heading">
-                  <div>
-                    <p className="slab-kicker">visual breakdown</p>
-                    <h3>Provider split</h3>
-                  </div>
-                  <span className="card-tag">actual usage share</span>
-                </div>
-
-                <div className="provider-ring-row">
-                  <div className="provider-ring" style={donutStyle}>
-                    <div className="provider-ring-core">
-                      <span>mix</span>
-                      <strong>{selectedProviderMix.length}</strong>
-                    </div>
-                  </div>
-
-                  <div className="provider-legend">
-                    {selectedProviderMix.map((item) => (
-                      <div key={item.provider} className="legend-row">
-                        <span className="legend-dot" style={{ background: providerTone(item.provider) }} />
-                        <div>
-                          <strong>{item.provider}</strong>
-                          <span>{formatNumber(item.total)} · {formatPercent(item.share)}</span>
+                      <div className="flex min-w-0 items-center gap-4">
+                        <Avatar name={row.displayName} url={row.avatarUrl} />
+                        <div className="min-w-0">
+                          <div className="truncate text-lg font-medium tracking-[-0.04em]">{row.displayName}</div>
+                          <div className="mt-1 truncate text-sm text-muted-foreground">
+                            {row.topModel} · {row.activityDays} active days · {row.machines} machine{row.machines === 1 ? '' : 's'}
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
 
-                <div className="token-stack">
-                  {selectedTokenMix.map((item) => (
-                    <div key={item.label} className="token-row">
-                      <div className="token-copy">
-                        <span>{item.label}</span>
-                        <strong>{formatNumber(item.value)}</strong>
+                      <div className="flex min-w-0 flex-col gap-2">
+                        <a
+                          href={row.githubUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="truncate text-sm font-medium hover:text-foreground/80"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {row.githubHandle}
+                        </a>
+                        <div className="flex flex-wrap gap-2">
+                          {row.xHandle ? <Badge variant="muted">@{row.xHandle}</Badge> : <Badge variant="outline">GitHub only</Badge>}
+                        </div>
                       </div>
-                      <div className="token-track">
-                        <span className="token-fill" style={{ width: `${Math.max(4, item.share * 100)}%` }} />
+
+                      <div className="text-left md:text-right">
+                        <div className="text-2xl font-medium tracking-[-0.05em] md:text-[2rem]">{formatNumber(row.metricValue)}</div>
+                        <div className="mt-1 text-sm text-muted-foreground">updated {formatUpdatedAt(row.lastSubmitted)}</div>
                       </div>
+
+                      <div className="flex items-center justify-start gap-2 md:justify-end">
+                        {positive ? (
+                          <ArrowUpRight className="size-5 text-emerald-500" />
+                        ) : negative ? (
+                          <ArrowDownRight className="size-5 text-rose-500" />
+                        ) : (
+                          <div className="size-5 rounded-full border border-border" />
+                        )}
+                        <span
+                          className={cn(
+                            'text-2xl font-medium tracking-[-0.05em]',
+                            positive && 'text-emerald-500',
+                            negative && 'text-rose-500',
+                            !positive && !negative && 'text-muted-foreground',
+                          )}
+                        >
+                          {formatPercent(row.growth)}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
+        {selected ? (
+          <section className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,1.1fr),minmax(0,0.9fr)]">
+            <Card className="rounded-[28px] border-border/80 bg-card/80 backdrop-blur">
+              <CardContent className="p-6">
+                <div className="flex flex-col gap-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">selected operator</p>
+                      <h3 className="mt-2 text-3xl font-medium tracking-[-0.06em]">{selected.displayName}</h3>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {selected.githubHandle} · top model {selected.topModel}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              </section>
+                    <Badge variant="outline" className="rounded-full px-3 py-1">rank #{selected.rank}</Badge>
+                  </div>
 
-              <section className="detail-card analysis-card">
-                <div className="card-heading">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-border/70 bg-muted/40 p-4">
+                      <div className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">{metric}</div>
+                      <div className="mt-3 text-3xl font-medium tracking-[-0.06em]">{formatCompact(selected.metricValue)}</div>
+                    </div>
+                    <div className="rounded-2xl border border-border/70 bg-muted/40 p-4">
+                      <div className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">growth</div>
+                      <div className="mt-3 text-3xl font-medium tracking-[-0.06em]">{formatPercent(selected.growth)}</div>
+                    </div>
+                    <div className="rounded-2xl border border-border/70 bg-muted/40 p-4">
+                      <div className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">updated</div>
+                      <div className="mt-3 text-lg font-medium tracking-[-0.04em]">{formatUpdatedAt(selected.lastSubmitted)}</div>
+                    </div>
+                  </div>
+
                   <div>
-                    <p className="slab-kicker">model ladder</p>
-                    <h3>Who is doing the work?</h3>
-                  </div>
-                  <span className="card-tag">top models by {metric}</span>
-                </div>
-
-                <div className="model-ladder">
-                  {selectedModels.map((item, index) => (
-                    <div key={item.model} className="model-row">
-                      <div className="model-order">{index + 1}</div>
-                      <div className="model-copy">
-                        <strong>{item.model}</strong>
-                        <span>{formatNumber(item.value)}</span>
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">traffic composition</p>
+                        <h4 className="mt-1 text-xl font-medium tracking-[-0.04em]">Token split</h4>
                       </div>
-                      <div className="model-track">
-                        <span className="model-fill" style={{ width: `${Math.max(6, item.share * 100)}%` }} />
-                      </div>
+                      <Badge variant="muted">{windowDays} day view</Badge>
                     </div>
-                  ))}
+                    <div className="space-y-4">
+                      {selectedProviderBars.map((item) => (
+                        <div key={item.label} className="space-y-2">
+                          <div className="flex items-center justify-between gap-3 text-sm">
+                            <span className="text-muted-foreground">{item.label}</span>
+                            <span className="font-mono">{formatNumber(item.value)}</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-muted">
+                            <div className="h-full rounded-full bg-foreground transition-all" style={{ width: `${Math.max(4, item.percent * 100)}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </section>
+              </CardContent>
+            </Card>
 
-              <section className="detail-card analysis-card">
-                <div className="card-heading">
+            <Card className="rounded-[28px] border-border/80 bg-card/80 backdrop-blur">
+              <CardContent className="p-6">
+                <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
-                    <p className="slab-kicker">daily pulse</p>
-                    <h3>Recent rhythm</h3>
+                    <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">model breakdown</p>
+                    <h4 className="mt-1 text-xl font-medium tracking-[-0.04em]">Top models</h4>
                   </div>
-                  <span className="card-tag">last 12 active days</span>
+                  <Badge variant="muted">{metric}</Badge>
                 </div>
-
-                <div className="pulse-strip">
-                  {selectedDays.map((day) => (
-                    <div key={day.date} className="pulse-column">
-                      <div className="pulse-bar-wrap">
-                        <span className="pulse-bar" style={{ height: `${day.normalized * 100}%` }} />
+                <div className="space-y-4">
+                  {selectedModels.map((item) => (
+                    <div key={item.label} className="space-y-2">
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="truncate text-muted-foreground">{item.label}</span>
+                        <span className="font-mono">{formatNumber(item.value)}</span>
                       </div>
-                      <strong>{formatCompactNumber(day.value)}</strong>
-                      <span>{day.label}</span>
+                      <div className="h-2 rounded-full bg-muted">
+                        <div className="h-full rounded-full bg-foreground transition-all" style={{ width: `${Math.max(5, item.percent * 100)}%` }} />
+                      </div>
                     </div>
                   ))}
                 </div>
-              </section>
-            </div>
-          ) : (
-            <section className="detail-card spotlight-card empty-detail">
-              <p className="slab-kicker">waiting on data</p>
-              <h3>No operator selected yet.</h3>
-              <p>When the board has data, this side turns into a visual teardown of the selected builder.</p>
-            </section>
-          )}
-        </aside>
-      </section>
-    </main>
+              </CardContent>
+            </Card>
+          </section>
+        ) : null}
+      </div>
+    </div>
   );
 }
