@@ -216,11 +216,11 @@ function rankGlyph(rank: number): string {
 
 function Avatar({ name, url }: { name: string; url?: string }) {
   if (url) {
-    return <img className="size-9 rounded-sm border object-cover" src={url} alt={name} referrerPolicy="no-referrer" />;
+    return <img className="size-10 rounded-sm border object-cover md:size-11" src={url} alt={name} referrerPolicy="no-referrer" />;
   }
 
   return (
-    <div className="flex size-9 items-center justify-center rounded-sm border bg-muted text-xs font-medium">
+    <div className="flex size-10 items-center justify-center rounded-sm border bg-muted text-xs font-medium md:size-11">
       {name.slice(0, 1).toUpperCase()}
     </div>
   );
@@ -495,7 +495,7 @@ export default function App() {
                 </div>
               ) : null}
 
-              <div className="hidden grid-cols-[60px,minmax(0,1.7fr),minmax(0,1fr),170px,130px] gap-3 px-6 py-4 text-sm text-muted-foreground md:grid">
+              <div className="hidden grid-cols-[64px,minmax(0,1.7fr),minmax(0,1fr),170px,132px] gap-3 px-6 py-4 text-sm text-muted-foreground md:grid">
                 <span>#</span>
                 <span>Builder</span>
                 <span>Identity</span>
@@ -522,8 +522,8 @@ export default function App() {
                       type="button"
                       onClick={() => setSelectedUserId(row.id)}
                       className={cn(
-                        'grid w-full gap-3 border-t border-border/70 px-6 py-3.5 text-left transition-colors',
-                        'md:grid-cols-[60px,minmax(0,1.7fr),minmax(0,1fr),170px,130px] md:items-center',
+                        'grid w-full gap-3 border-t border-border/70 px-6 py-4 text-left transition-colors md:min-h-[98px]',
+                        'md:grid-cols-[64px,minmax(0,1.7fr),minmax(0,1fr),170px,132px] md:items-center md:py-0',
                         selectedRow && 'bg-accent/40',
                       )}
                     >
@@ -531,11 +531,11 @@ export default function App() {
                         <span className="inline-flex min-w-10 items-center justify-start font-mono text-base text-foreground">{rankGlyph(row.rank)}</span>
                       </div>
 
-                      <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex min-w-0 items-center gap-3.5">
                         <Avatar name={row.displayName} url={row.avatarUrl} />
                         <div className="min-w-0">
-                          <div className="truncate text-base font-medium tracking-[-0.03em]">{row.displayName}</div>
-                          <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                          <div className="truncate text-[1.05rem] font-medium tracking-[-0.03em]">{row.displayName}</div>
+                          <div className="mt-0.5 truncate text-xs text-muted-foreground md:text-[13px]">
                             {row.topModel} · {row.activityDays} active days · {row.machines} machine{row.machines === 1 ? '' : 's'}
                           </div>
                         </div>
@@ -557,7 +557,7 @@ export default function App() {
                       </div>
 
                       <div className="text-left md:text-right">
-                        <div className="text-xl font-medium tracking-[-0.04em] md:text-[1.65rem]">{formatNumber(row.metricValue)}</div>
+                        <div className="text-xl font-medium tracking-[-0.04em] md:text-[1.85rem]">{formatNumber(row.metricValue)}</div>
                         <div className="mt-0.5 text-xs text-muted-foreground">updated {formatUpdatedAt(row.lastSubmitted)}</div>
                       </div>
 
@@ -571,7 +571,7 @@ export default function App() {
                         )}
                         <span
                           className={cn(
-                            'text-xl font-medium tracking-[-0.04em]',
+                            'text-xl font-medium tracking-[-0.04em] md:text-[1.75rem]',
                             positive && 'text-emerald-500',
                             negative && 'text-rose-500',
                             !positive && !negative && 'text-muted-foreground',
