@@ -182,36 +182,12 @@ function xHandleToUrl(handle?: string): string | undefined {
   return `https://x.com/${normalizeHandle(handle)}`;
 }
 
-function normalizeTotals(value: unknown, provider?: ProviderId): TokenTotals {
+function normalizeTotals(value: unknown): TokenTotals {
   const record = isRecord(value) ? value : {};
   const input = asPositiveInteger(record.input, 0);
   const output = asPositiveInteger(record.output, 0);
   const cache = asPositiveInteger(record.cache, 0);
-  const computedTotal = input + output + cache;
-  const providedTotal = asPositiveInteger(record.total, computedTotal);
-
-  if (provider === 'claude' && cache > 0 && providedTotal === input + output) {
-    const nonCacheTotal = Math.max(0, providedTotal - cache);
-    const weightSum = input + output;
-    const nextInput = weightSum > 0 ? Math.round((input / weightSum) * nonCacheTotal) : nonCacheTotal;
-    const nextOutput = Math.max(0, nonCacheTotal - nextInput);
-
-    return {
-      input: nextInput,
-      output: nextOutput,
-      cache,
-      total: nextInput + nextOutput + cache,
-    };
-  }
-
-  if (provider === 'codex') {
-    return {
-      input,
-      output,
-      cache,
-      total: Math.max(computedTotal, providedTotal),
-    };
-  }
+  const providedTotal = asPositiveInteger(record.total, input + output);
 
   return {
     input,
@@ -221,23 +197,23 @@ function normalizeTotals(value: unknown, provider?: ProviderId): TokenTotals {
   };
 }
 
-function normalizeModelUsage(value: unknown, index: number, provider?: ProviderId): ModelUsage {
+function normalizeModelUsage(value: unknown, index: number): ModelUsage {
   const record = isRecord(value) ? value : {};
   return {
     model: asString(record.model, `unknown-model-${index + 1}`),
-    tokens: normalizeTotals(record.tokens, provider),
+    tokens: normalizeTotals(record.tokens),
   };
 }
 
-function normalizeDailyUsage(value: unknown, index: number, provider?: ProviderId): DailyUsage {
+function normalizeDailyUsage(value: unknown, index: number): DailyUsage {
   const record = isRecord(value) ? value : {};
   const fallbackDate = new Date(Date.now() - index * 86_400_000).toISOString().slice(0, 10);
   const displayValue = asNumber(record.displayValue, Number.NaN);
 
   return {
     date: asDateKey(record.date, fallbackDate),
-    totals: normalizeTotals(record.totals, provider),
-    models: asArray(record.models).map((item, modelIndex) => normalizeModelUsage(item, modelIndex, provider)),
+    totals: normalizeTotals(record.totals),
+    models: asArray(record.models).map((item, modelIndex) => normalizeModelUsage(item, modelIndex)),
     displayValue: Number.isFinite(displayValue) ? displayValue : undefined,
   };
 }
@@ -245,9 +221,9 @@ function normalizeDailyUsage(value: unknown, index: number, provider?: ProviderI
 function normalizeProviderSnapshot(value: unknown, index: number): ProviderSnapshot {
   const record = isRecord(value) ? value : {};
   const provider = asProviderId(record.provider, index % 2 === 0 ? 'claude' : 'codex');
-  const totals = normalizeTotals(record.totals, provider);
-  const byModel = asArray(record.byModel).map((item, modelIndex) => normalizeModelUsage(item, modelIndex, provider));
-  let byDay = asArray(record.byDay).map((item, dayIndex) => normalizeDailyUsage(item, dayIndex, provider));
+  const totals = normalizeTotals(record.totals);
+  const byModel = asArray(record.byModel).map((item, modelIndex) => normalizeModelUsage(item, modelIndex));
+  let byDay = asArray(record.byDay).map((item, dayIndex) => normalizeDailyUsage(item, dayIndex));
 
   if (!byDay.length && (totals.total > 0 || byModel.length > 0)) {
     byDay = [

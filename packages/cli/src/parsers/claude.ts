@@ -65,17 +65,15 @@ async function getProjectFiles(): Promise<string[]> {
 }
 
 function createTokenTotals(usage: ClaudeUsagePayload): TokenTotals {
-  const input = usage.input_tokens ?? 0;
-  const output = usage.output_tokens ?? 0;
   const cacheRead = usage.cache_read_input_tokens ?? 0;
   const cacheWrite = usage.cache_creation_input_tokens ?? 0;
-  const cache = cacheRead + cacheWrite;
-
+  const input = (usage.input_tokens ?? 0) + cacheRead;
+  const output = (usage.output_tokens ?? 0) + cacheWrite;
   return {
     input,
     output,
-    cache,
-    total: input + output + cache,
+    cache: cacheRead + cacheWrite,
+    total: input + output,
   };
 }
 
@@ -116,10 +114,10 @@ function createStatsCacheTotals(totalTokens: number, usage?: ClaudeStatsCache['m
   }
 
   return {
-    input: inputBase,
-    output: outputBase,
+    input: inputBase + cacheRead,
+    output: outputBase + cacheWrite,
     cache: cacheRead + cacheWrite,
-    total: inputBase + outputBase + cacheRead + cacheWrite,
+    total: totalTokens,
   };
 }
 

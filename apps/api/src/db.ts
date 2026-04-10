@@ -60,31 +60,6 @@ function normalizeTokenTotals(value: unknown): TokenTotals | null {
   };
 }
 
-function normalizeTotalsForProvider(provider: ProviderId, totals: TokenTotals): TokenTotals {
-  if (provider === 'claude' && totals.cache > 0 && totals.total === totals.input + totals.output) {
-    const nonCacheTotal = Math.max(0, totals.total - totals.cache);
-    const weightSum = totals.input + totals.output;
-    const input = weightSum > 0 ? Math.round((totals.input / weightSum) * nonCacheTotal) : nonCacheTotal;
-    const output = Math.max(0, nonCacheTotal - input);
-
-    return {
-      input,
-      output,
-      cache: totals.cache,
-      total: input + output + totals.cache,
-    };
-  }
-
-  if (provider === 'codex') {
-    return {
-      ...totals,
-      total: Math.max(totals.total, totals.input + totals.output + totals.cache),
-    };
-  }
-
-  return totals;
-}
-
 function normalizeModelUsage(value: unknown): { model: string; tokens: TokenTotals } | null {
   if (!isRecord(value)) {
     return null;
@@ -161,14 +136,7 @@ function normalizeProviderSnapshot(value: unknown): { provider: ProviderId; byDa
 
   return {
     provider,
-    byDay: (byDay as DailyUsage[]).map((day) => ({
-      ...day,
-      totals: normalizeTotalsForProvider(provider, day.totals),
-      models: day.models.map((model) => ({
-        ...model,
-        tokens: normalizeTotalsForProvider(provider, model.tokens),
-      })),
-    })),
+    byDay: byDay as DailyUsage[],
     sourceCount: isNonNegativeSafeInteger(value.sourceCount) ? value.sourceCount : 0,
   };
 }
