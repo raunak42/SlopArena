@@ -39,6 +39,15 @@ npm install
 npm run build
 ```
 
+Railway-friendly service commands:
+
+```bash
+npm run build:api
+npm run start:api
+npm run build:web
+npm run start:web
+```
+
 Run the API and website in development:
 
 ```bash
@@ -90,6 +99,10 @@ node packages/cli/dist/index.js logout
 - The frontend refreshes dashboard data every 15 seconds.
 - Local terminal login is stored in `~/.sloparena/auth.json`.
 - The leaderboard shows verified GitHub identity and an optional user-supplied X handle.
-- The CLI production API default is `https://sloparena-api-production.up.railway.app`.
-  You should point this at your real production backend domain before the next public release.
+- The CLI production API default is `https://usageboard-api-production.up.railway.app`.
+- For Railway, prefer stable root scripts instead of workspace names in the dashboard:
+  - API build: `npm run build:api`
+  - API start: `npm run start:api`
+  - Web build: `npm run build:web`
+  - Web start: `npm run start:web`
 - The CLI production web default is `https://sloparena.up.railway.app`.
