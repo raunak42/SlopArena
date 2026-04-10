@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   addTotals,
   cloneTotals,
@@ -128,40 +128,80 @@ export default function App() {
   const [metric, setMetric] = useState<MetricKey>('total');
   const [mode, setMode] = useState<ModeKey>('users');
   const [query, setQuery] = useState('');
+  const [reloadTick, setReloadTick] = useState(0);
+  const hasDataRef = useRef(false);
+
+  useEffect(() => {
+    hasDataRef.current = Boolean(data);
+  }, [data]);
 
   useEffect(() => {
     let cancelled = false;
+    let timer: number | undefined;
+    let controller: AbortController | null = null;
 
-    async function load() {
-      setLoading(true);
-      setError(null);
+    function scheduleNext(ms: number) {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        void load(true);
+      }, ms);
+    }
+
+    async function load(background = false) {
+      controller?.abort();
+      controller = new AbortController();
+      const timeout = window.setTimeout(() => controller?.abort(), 10000);
+
+      if (!background || !hasDataRef.current) {
+        setLoading(true);
+      }
+
       try {
-        const response = await fetch(`${API_URL}/api/dashboard`);
+        const response = await fetch(`${API_URL}/api/dashboard`, {
+          signal: controller.signal,
+        });
         if (!response.ok) {
           throw new Error(`Failed to load dashboard (${response.status})`);
         }
         const payload = (await response.json()) as DashboardData;
         if (!cancelled) {
           setData(payload);
+          setError(null);
         }
+        scheduleNext(document.hidden ? 60000 : 30000);
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : String(loadError));
+          const message = loadError instanceof Error && loadError.name === 'AbortError'
+            ? 'Dashboard refresh timed out. Retrying shortly.'
+            : loadError instanceof Error
+              ? loadError.message
+              : String(loadError);
+          setError(message);
         }
+        scheduleNext(15000);
       } finally {
+        window.clearTimeout(timeout);
         if (!cancelled) {
           setLoading(false);
         }
       }
     }
 
-    load();
-    const timer = window.setInterval(load, 15000);
+    function handleVisibilityChange() {
+      if (!document.hidden) {
+        void load(true);
+      }
+    }
+
+    void load(false);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      controller?.abort();
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [reloadTick]);
 
   const userRows = useMemo<UserRow[]>(() => {
     if (!data) {
@@ -302,7 +342,14 @@ export default function App() {
       </section>
 
       {loading ? <section className="panel">Loading dashboard…</section> : null}
-      {error ? <section className="panel error">{error}</section> : null}
+      {error ? (
+        <section className="panel error">
+          <div>{error}</div>
+          <button type="button" onClick={() => setReloadTick((value) => value + 1)}>
+            Retry now
+          </button>
+        </section>
+      ) : null}
 
       {!loading && !error && data ? (
         <section className="grid-layout">
@@ -316,6 +363,14 @@ export default function App() {
             </div>
 
             <div className="leaderboard-table">
+              {(mode === 'users' ? userRows : modelRows).length === 0 ? (
+                <article className="leaderboard-row">
+                  <div className="row-main">
+                    <strong>No snapshots yet</strong>
+                    <span>Run <code>npx sloparena go</code> from the terminal to get on the board.</span>
+                  </div>
+                </article>
+              ) : null}
               {(mode === 'users' ? userRows : modelRows).map((row, index) => (
                 <article className="leaderboard-row" key={'id' in row ? row.id : row.label}>
                   <div className="rank">#{index + 1}</div>

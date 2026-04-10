@@ -16,8 +16,25 @@ function isString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function isSafeString(value: unknown, maxLength: number): value is string {
+  return isString(value) && value.trim().length <= maxLength;
+}
+
 function isProviderId(value: unknown): value is ProviderId {
   return value === "claude" || value === "codex";
+}
+
+function normalizeXHandle(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim().replace(/^@+/, "");
+  if (!normalized) {
+    return undefined;
+  }
+
+  return /^[A-Za-z0-9_]{1,15}$/.test(normalized) ? normalized : undefined;
 }
 
 function parseTokenTotals(value: unknown): TokenTotals | null {
@@ -45,7 +62,7 @@ function parseModelUsage(value: unknown): ModelUsage | null {
 
   const candidate = value as Record<string, unknown>;
   const totals = parseTokenTotals(candidate.tokens);
-  if (!isString(candidate.model) || !totals) {
+  if (!isSafeString(candidate.model, 120) || !totals) {
     return null;
   }
 
@@ -59,7 +76,13 @@ function parseDailyUsage(value: unknown): DailyUsage | null {
 
   const candidate = value as Record<string, unknown>;
   const totals = parseTokenTotals(candidate.totals);
-  if (!isString(candidate.date) || !totals || !Array.isArray(candidate.models)) {
+  if (
+    !isSafeString(candidate.date, 10) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(candidate.date) ||
+    !totals ||
+    !Array.isArray(candidate.models) ||
+    candidate.models.length > 300
+  ) {
     return null;
   }
 
@@ -78,7 +101,14 @@ function parseProviderSnapshot(value: unknown): ProviderSnapshot | null {
 
   const candidate = value as Record<string, unknown>;
   const totals = parseTokenTotals(candidate.totals);
-  if (!isProviderId(candidate.provider) || !totals || !Array.isArray(candidate.byModel) || !Array.isArray(candidate.byDay)) {
+  if (
+    !isProviderId(candidate.provider) ||
+    !totals ||
+    !Array.isArray(candidate.byModel) ||
+    candidate.byModel.length > 300 ||
+    !Array.isArray(candidate.byDay) ||
+    candidate.byDay.length > 400
+  ) {
     return null;
   }
 
@@ -99,19 +129,23 @@ function parseSnapshotDraft(value: unknown): SnapshotDraft | null {
 
   const candidate = value as Record<string, unknown>;
   if (
-    !isString(candidate.id) ||
-    !isString(candidate.machineId) ||
-    !isString(candidate.capturedAt) ||
-    !isString(candidate.submittedAt) ||
-    !isString(candidate.cliVersion) ||
+    !isSafeString(candidate.id, 120) ||
+    !isSafeString(candidate.machineId, 120) ||
+    !isSafeString(candidate.capturedAt, 64) ||
+    !isSafeString(candidate.submittedAt, 64) ||
+    !isSafeString(candidate.cliVersion, 32) ||
     !isNumber(candidate.windowDays) ||
-    !Array.isArray(candidate.providers)
+    candidate.windowDays < 1 ||
+    candidate.windowDays > 365 ||
+    !Array.isArray(candidate.providers) ||
+    candidate.providers.length === 0 ||
+    candidate.providers.length > 2
   ) {
     return null;
   }
 
   const providers = candidate.providers.map(parseProviderSnapshot).filter(Boolean) as ProviderSnapshot[];
-  if (providers.length === 0) {
+  if (providers.length === 0 || new Set(providers.map((provider) => provider.provider)).size !== providers.length) {
     return null;
   }
 
@@ -133,15 +167,16 @@ export function parseSubmitRequest(value: unknown): SubmitSnapshotRequest | null
 
   const candidate = value as Record<string, unknown>;
   const snapshot = parseSnapshotDraft(candidate.snapshot);
+  const normalizedXHandle = normalizeXHandle(candidate.xHandle);
   const hasXHandle = candidate.xHandle === undefined || candidate.xHandle === null || typeof candidate.xHandle === "string";
 
-  if (!isString(candidate.githubAccessToken) || !snapshot || !hasXHandle) {
+  if (!isSafeString(candidate.githubAccessToken, 5000) || !snapshot || !hasXHandle || (candidate.xHandle && !normalizedXHandle)) {
     return null;
   }
 
   return {
     githubAccessToken: candidate.githubAccessToken,
-    xHandle: typeof candidate.xHandle === "string" && candidate.xHandle.trim() !== "" ? candidate.xHandle.trim() : undefined,
+    xHandle: normalizedXHandle,
     snapshot,
   };
 }

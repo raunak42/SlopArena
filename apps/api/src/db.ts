@@ -12,6 +12,30 @@ function isTokenTotals(value: unknown): boolean {
   );
 }
 
+function isModelUsage(value: unknown): boolean {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.model === "string" && isTokenTotals(candidate.tokens);
+}
+
+function isDailyUsage(value: unknown): boolean {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.date === "string" &&
+    isTokenTotals(candidate.totals) &&
+    Array.isArray(candidate.models) &&
+    candidate.models.every(isModelUsage) &&
+    (candidate.displayValue === undefined || typeof candidate.displayValue === "number")
+  );
+}
+
 function isProviderSnapshot(value: unknown): boolean {
   if (!value || typeof value !== "object") {
     return false;
@@ -22,7 +46,9 @@ function isProviderSnapshot(value: unknown): boolean {
     (candidate.provider === "claude" || candidate.provider === "codex") &&
     isTokenTotals(candidate.totals) &&
     Array.isArray(candidate.byModel) &&
+    candidate.byModel.every(isModelUsage) &&
     Array.isArray(candidate.byDay) &&
+    candidate.byDay.every(isDailyUsage) &&
     typeof candidate.sourceCount === "number" &&
     typeof candidate.activityDays === "number"
   );

@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
-import { createReadStream, existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createReadStream, existsSync, readFileSync } from "node:fs";
+import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
+import { fileURLToPath } from "node:url";
 import {
   addTotals,
   emptyTotals,
@@ -30,6 +31,49 @@ const APP_DIR = join(homedir(), ".sloparena");
 const AUTH_FILE = join(APP_DIR, "auth.json");
 const LEGACY_APP_DIR = join(homedir(), ".usageboard");
 const LEGACY_AUTH_FILE = join(LEGACY_APP_DIR, "auth.json");
+const CLI_VERSION = resolveCliVersion();
+
+function resolveCliVersion(): string {
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(currentDir, "..", "package.json"),
+    join(process.cwd(), "packages", "cli", "package.json"),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      const raw = readFileSync(candidate, "utf8");
+      const parsed = JSON.parse(raw) as { version?: unknown };
+      if (typeof parsed.version === "string" && parsed.version.trim()) {
+        return parsed.version.trim();
+      }
+    } catch {
+      // Try the next location.
+    }
+  }
+
+  return "0.1.2";
+}
+
+function isLocalAuthSession(value: unknown): value is LocalAuthSession {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const profile = candidate.profile as Record<string, unknown> | undefined;
+  return (
+    typeof candidate.githubAccessToken === "string" &&
+    typeof candidate.serverUrl === "string" &&
+    typeof candidate.savedAt === "string" &&
+    !!profile &&
+    profile.provider === "github" &&
+    typeof profile.providerUserId === "string" &&
+    typeof profile.handle === "string" &&
+    typeof profile.displayName === "string" &&
+    typeof profile.profileUrl === "string"
+  );
+}
 
 export function createProviderState(provider: ProviderId): AggregatedProviderState {
   return {
@@ -197,7 +241,7 @@ export function makeSnapshotBase(machineId: string, days: number): Pick<Snapshot
     capturedAt: now,
     submittedAt: now,
     windowDays: days,
-    cliVersion: "0.1.0",
+    cliVersion: CLI_VERSION,
   };
 }
 
@@ -214,18 +258,23 @@ export function parentDir(path: string): string {
 }
 
 export async function saveLocalSession(session: LocalAuthSession): Promise<void> {
-  await mkdir(APP_DIR, { recursive: true });
-  await writeFile(AUTH_FILE, JSON.stringify(session, null, 2));
+  await mkdir(APP_DIR, { recursive: true, mode: 0o700 });
+  await chmod(APP_DIR, 0o700).catch(() => undefined);
+
+  const tempFile = `${AUTH_FILE}.tmp`;
+  await writeFile(tempFile, JSON.stringify(session, null, 2), { mode: 0o600 });
+  await rename(tempFile, AUTH_FILE);
+  await chmod(AUTH_FILE, 0o600).catch(() => undefined);
 }
 
 export async function loadLocalSession(): Promise<LocalAuthSession | null> {
-  const current = await readJsonFile<LocalAuthSession>(AUTH_FILE);
-  if (current) {
+  const current = await readJsonFile<unknown>(AUTH_FILE);
+  if (isLocalAuthSession(current)) {
     return current;
   }
 
-  const legacy = await readJsonFile<LocalAuthSession>(LEGACY_AUTH_FILE);
-  if (legacy) {
+  const legacy = await readJsonFile<unknown>(LEGACY_AUTH_FILE);
+  if (isLocalAuthSession(legacy)) {
     await saveLocalSession(legacy);
     return legacy;
   }

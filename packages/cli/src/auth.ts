@@ -35,13 +35,50 @@ interface BrowserLoginStatus {
 }
 
 const DEFAULT_GITHUB_CLIENT_ID = "Ov23ligfZI2kUzgsi75v";
+const NETWORK_TIMEOUT_MS = 20_000;
 
 function getGitHubClientId(): string {
   return process.env.GITHUB_CLIENT_ID?.trim() || DEFAULT_GITHUB_CLIENT_ID;
 }
 
+function normalizeXHandle(value?: string): string | undefined {
+  const normalized = value?.trim().replace(/^@+/, "") || undefined;
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (!/^[A-Za-z0-9_]{1,15}$/.test(normalized)) {
+    throw new Error("X handle must be 1-15 characters and use only letters, numbers, or underscores.");
+  }
+
+  return normalized;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createTimeoutSignal(timeoutMs = NETWORK_TIMEOUT_MS): { signal: AbortSignal; cancel: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return {
+    signal: controller.signal,
+    cancel: () => clearTimeout(timer),
+  };
+}
+
+async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = NETWORK_TIMEOUT_MS): Promise<Response> {
+  const { signal, cancel } = createTimeoutSignal(timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Network request timed out while contacting ${new URL(url).host}.`);
+    }
+    throw error;
+  } finally {
+    cancel();
+  }
 }
 
 async function requestDeviceCode(): Promise<DeviceCodeResponse> {
@@ -50,7 +87,7 @@ async function requestDeviceCode(): Promise<DeviceCodeResponse> {
     client_id: clientId,
     scope: "read:user",
   });
-  const response = await fetch("https://github.com/login/device/code", {
+  const response = await fetchWithTimeout("https://github.com/login/device/code", {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -79,7 +116,7 @@ async function pollAccessToken(deviceCode: DeviceCodeResponse): Promise<string> 
       device_code: deviceCode.device_code,
       grant_type: "urn:ietf:params:oauth:grant-type:device_code",
     });
-    const response = await fetch("https://github.com/login/oauth/access_token", {
+    const response = await fetchWithTimeout("https://github.com/login/oauth/access_token", {
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -117,7 +154,7 @@ async function pollAccessToken(deviceCode: DeviceCodeResponse): Promise<string> 
 }
 
 export async function fetchGitHubProfile(accessToken: string, xHandle?: string): Promise<PublicProfile> {
-  const response = await fetch("https://api.github.com/user", {
+  const response = await fetchWithTimeout("https://api.github.com/user", {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${accessToken}`,
@@ -138,7 +175,7 @@ export async function fetchGitHubProfile(accessToken: string, xHandle?: string):
     displayName: user.name?.trim() || user.login,
     avatarUrl: user.avatar_url,
     profileUrl: user.html_url,
-    xHandle: xHandle?.trim().replace(/^@+/, "") || undefined,
+    xHandle: normalizeXHandle(xHandle),
   };
 }
 
@@ -146,11 +183,15 @@ async function pollBrowserLogin(serverUrl: string, state: string): Promise<{ acc
   const expiresAt = Date.now() + 10 * 60 * 1000;
   while (Date.now() < expiresAt) {
     await sleep(1500);
-    const response = await fetch(`${serverUrl.replace(/\/$/, "")}/api/auth/github/status?state=${encodeURIComponent(state)}`, {
-      headers: {
-        Accept: "application/json",
+    const response = await fetchWithTimeout(
+      `${serverUrl.replace(/\/$/, "")}/api/auth/github/status?state=${encodeURIComponent(state)}`,
+      {
+        headers: {
+          Accept: "application/json",
+        },
       },
-    });
+      10_000,
+    );
 
     if (response.status === 404) {
       throw new Error("GitHub browser login expired before it was completed. Run `sloparena login` again.");
@@ -176,6 +217,19 @@ async function pollBrowserLogin(serverUrl: string, state: string): Promise<{ acc
   throw new Error("GitHub browser login timed out. Run `sloparena login` again.");
 }
 
+function shouldFallbackToDeviceFlow(message: string): boolean {
+  return [
+    "Cannot GET",
+    "Missing state",
+    "Invalid auth state",
+    "GitHub browser login polling failed",
+    "GitHub OAuth",
+    "Missing GITHUB_",
+    "Unexpected token <",
+    "404",
+  ].some((fragment) => message.includes(fragment));
+}
+
 async function loginWithGitHubBrowser(serverUrl: string): Promise<LocalAuthSession> {
   const state = randomUUID();
   const loginUrl = `${serverUrl.replace(/\/$/, "")}/api/auth/github/start?state=${encodeURIComponent(state)}`;
@@ -193,7 +247,7 @@ async function loginWithGitHubBrowser(serverUrl: string): Promise<LocalAuthSessi
     serverUrl,
     profile: {
       ...result.profile,
-      xHandle: existing?.profile.xHandle,
+      xHandle: normalizeXHandle(existing?.profile.xHandle),
     },
     savedAt: new Date().toISOString(),
   };
@@ -206,7 +260,7 @@ export async function loginWithGitHub(serverUrl: string): Promise<LocalAuthSessi
     return await loginWithGitHubBrowser(serverUrl);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (!message.includes("404") && !message.includes("Missing state") && !message.includes("Cannot GET") && !message.includes("GitHub browser login polling failed")) {
+    if (!shouldFallbackToDeviceFlow(message)) {
       throw error;
     }
 
@@ -245,7 +299,7 @@ export async function requireLocalSession(): Promise<LocalAuthSession> {
 
 export async function updateXHandle(xHandle?: string): Promise<LocalAuthSession> {
   const session = await requireLocalSession();
-  const normalized = xHandle?.trim().replace(/^@+/, "") || undefined;
+  const normalized = normalizeXHandle(xHandle);
   const updated: LocalAuthSession = {
     ...session,
     profile: {

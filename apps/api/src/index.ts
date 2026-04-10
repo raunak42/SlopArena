@@ -6,6 +6,7 @@ import type { PublicProfile, UsageSnapshot } from "@sloparena/shared";
 import { buildDashboard } from "./aggregate.js";
 import { initDatabase, insertSnapshot, listSnapshots, pingDatabase } from "./db.js";
 import { buildGitHubAuthorizeUrl, exchangeGitHubCode, fetchGitHubProfile } from "./github.js";
+import { applySecurityHeaders, createCorsOptions, createRateLimiter, isValidAuthState } from "./security.js";
 import { parseSubmitRequest } from "./validation.js";
 
 const port = Number(process.env.PORT ?? 4000);
@@ -18,6 +19,31 @@ const authSessions = new Map<string, {
   createdAt: number;
 }>();
 const AUTH_TTL_MS = 10 * 60 * 1000;
+
+const authStartLimiter = createRateLimiter({
+  keyPrefix: "auth-start",
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  message: "Too many GitHub login attempts. Please wait a few minutes and try again.",
+});
+const authStatusLimiter = createRateLimiter({
+  keyPrefix: "auth-status",
+  windowMs: 60 * 1000,
+  max: 240,
+  message: "Too many login status checks. Please retry the login flow.",
+});
+const dashboardLimiter = createRateLimiter({
+  keyPrefix: "dashboard",
+  windowMs: 60 * 1000,
+  max: 180,
+  message: "Dashboard rate limit exceeded. Please try again shortly.",
+});
+const submissionLimiter = createRateLimiter({
+  keyPrefix: "submission",
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  message: "Submission rate limit exceeded. Please wait before sending more snapshots.",
+});
 
 function cleanupAuthSessions(): void {
   const now = Date.now();
@@ -57,7 +83,10 @@ function renderAuthPage(title: string, message: string, isError = false): string
 }
 
 const app = express();
-app.use(cors());
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
+app.use(cors(createCorsOptions(webUrl)));
+app.use(applySecurityHeaders);
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/health", async (_request, response) => {
@@ -66,13 +95,19 @@ app.get("/api/health", async (_request, response) => {
     await pingDatabase();
     response.json({ ok: true, port, database: "connected" });
   } catch (error) {
-    response.status(500).json({ ok: false, port, database: "error", error: error instanceof Error ? error.message : String(error) });
+    console.error("health check failed", error);
+    response.status(500).json({ ok: false, port, database: "error" });
   }
 });
 
-app.get("/api/auth/github/start", (request, response) => {
+app.get("/api/auth/github/start", authStartLimiter, (request, response) => {
   cleanupAuthSessions();
   const state = typeof request.query.state === "string" && request.query.state.trim() ? request.query.state.trim() : randomUUID();
+  if (!isValidAuthState(state)) {
+    response.status(400).json({ error: "Invalid auth state" });
+    return;
+  }
+
   authSessions.set(state, { status: "pending", createdAt: Date.now() });
 
   try {
@@ -89,7 +124,7 @@ app.get("/api/auth/github/callback", async (request, response) => {
   const code = typeof request.query.code === "string" ? request.query.code.trim() : "";
   const githubError = typeof request.query.error === "string" ? request.query.error.trim() : "";
 
-  if (!state || !authSessions.has(state)) {
+  if (!state || !isValidAuthState(state) || !authSessions.has(state)) {
     response.status(400).send(renderAuthPage("Login session not found", "This GitHub login session is missing or expired. Please go back to the terminal and run SlopArena again.", true));
     return;
   }
@@ -112,15 +147,16 @@ app.get("/api/auth/github/callback", async (request, response) => {
     authSessions.set(state, { status: "complete", accessToken, profile, createdAt: Date.now() });
     response.send(renderAuthPage("GitHub login complete", "You are signed in. Return to the terminal — SlopArena will continue automatically."));
   } catch (error) {
+    console.error("GitHub callback failed", error);
     authSessions.set(state, { status: "error", error: error instanceof Error ? error.message : String(error), createdAt: Date.now() });
     response.status(500).send(renderAuthPage("GitHub login failed", "SlopArena could not finish GitHub login. Return to the terminal and try again.", true));
   }
 });
 
-app.get("/api/auth/github/status", (request, response) => {
+app.get("/api/auth/github/status", authStatusLimiter, (request, response) => {
   cleanupAuthSessions();
   const state = typeof request.query.state === "string" ? request.query.state.trim() : "";
-  if (!state) {
+  if (!state || !isValidAuthState(state)) {
     response.status(400).json({ error: "Missing state" });
     return;
   }
@@ -132,11 +168,13 @@ app.get("/api/auth/github/status", (request, response) => {
   }
 
   if (session.status === "complete") {
-    response.json({
-      status: "complete",
+    const payload = {
+      status: "complete" as const,
       accessToken: session.accessToken,
       profile: session.profile,
-    });
+    };
+    authSessions.delete(state);
+    response.json(payload);
     return;
   }
 
@@ -148,12 +186,17 @@ app.get("/api/auth/github/status", (request, response) => {
   response.json({ status: "pending" });
 });
 
-app.get("/api/dashboard", async (_request, response) => {
-  const history = await listSnapshots();
-  response.json(buildDashboard(history));
+app.get("/api/dashboard", dashboardLimiter, async (_request, response) => {
+  try {
+    const history = await listSnapshots();
+    response.json(buildDashboard(history));
+  } catch (error) {
+    console.error("dashboard request failed", error);
+    response.status(500).json({ error: "Failed to build dashboard." });
+  }
 });
 
-app.post("/api/submissions", async (request, response) => {
+app.post("/api/submissions", submissionLimiter, async (request, response) => {
   const parsed = parseSubmitRequest(request.body);
   if (!parsed) {
     response.status(400).json({ error: "Invalid submission payload" });
@@ -180,8 +223,13 @@ app.post("/api/submissions", async (request, response) => {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const status = message.includes("GitHub profile lookup failed") ? 401 : 500;
-    response.status(status).json({ error: message });
+    if (message.includes("GitHub profile lookup failed")) {
+      response.status(401).json({ error: "GitHub login is invalid or expired. Please log in again." });
+      return;
+    }
+
+    console.error("submission failed", error);
+    response.status(500).json({ error: "Failed to store snapshot." });
   }
 });
 
