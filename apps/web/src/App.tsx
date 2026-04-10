@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
-import { Card, CardContent } from './components/ui/card';
 import { Input } from './components/ui/input';
 import { cn } from './lib/utils';
 
@@ -217,11 +216,11 @@ function rankGlyph(rank: number): string {
 
 function Avatar({ name, url }: { name: string; url?: string }) {
   if (url) {
-    return <img className="size-11 rounded-lg border object-cover" src={url} alt={name} referrerPolicy="no-referrer" />;
+    return <img className="size-11 rounded-sm border object-cover" src={url} alt={name} referrerPolicy="no-referrer" />;
   }
 
   return (
-    <div className="flex size-11 items-center justify-center rounded-lg border bg-muted text-sm font-medium">
+    <div className="flex size-11 items-center justify-center rounded-sm border bg-muted text-sm font-medium">
       {name.slice(0, 1).toUpperCase()}
     </div>
   );
@@ -241,7 +240,7 @@ function CopyCommandButton({ command }: { command: string }) {
   }
 
   return (
-    <Button type="button" variant="outline" className="h-11 gap-2 rounded-lg" onClick={handleCopy}>
+    <Button type="button" variant="outline" className="h-11 gap-2 rounded-sm" onClick={handleCopy}>
       <Copy className="size-4" />
       {copied ? 'Copied' : 'Copy'}
     </Button>
@@ -376,14 +375,14 @@ export default function App() {
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-16 pt-6 sm:px-6 lg:px-8">
         <header className="flex items-center justify-between pb-8">
           <div className="inline-flex items-center gap-3 text-sm font-medium">
-            <div className="flex size-8 items-center justify-center rounded-lg border bg-foreground text-background">S</div>
+            <div className="flex size-8 items-center justify-center rounded-sm border bg-foreground text-background">S</div>
             <span>SlopArena</span>
           </div>
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="rounded-lg"
+            className="rounded-sm"
             onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
           >
             {theme === 'dark' ? <SunMedium className="size-4" /> : <MoonStar className="size-4" />}
@@ -391,7 +390,7 @@ export default function App() {
         </header>
 
         <section className="mx-auto flex w-full max-w-5xl flex-col items-center text-center">
-          <Badge variant="muted" className="rounded-md px-3 py-1 font-mono text-[11px] tracking-[0.18em] uppercase">
+          <Badge variant="muted" className="rounded-sm px-3 py-1 font-mono text-[11px] tracking-[0.18em] uppercase">
             cli-native leaderboard · github-verified
           </Badge>
           <h1 className="mt-6 max-w-5xl text-balance font-sans text-5xl font-medium tracking-[-0.08em] sm:text-6xl lg:text-8xl">
@@ -404,7 +403,7 @@ export default function App() {
           <div className="mt-10 flex w-full max-w-3xl flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
               <Terminal className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input readOnly value={COMMAND} className="h-12 rounded-lg pl-11 font-mono text-sm" />
+              <Input readOnly value={COMMAND} className="h-12 rounded-sm pl-11 font-mono text-sm" />
             </div>
             <CopyCommandButton command={COMMAND} />
           </div>
@@ -420,9 +419,9 @@ export default function App() {
           </div>
         </section>
 
-        <section className="mt-16 grid items-start gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.9fr)]">
-          <Card className="overflow-hidden rounded-xl border-border/80 bg-card/80 backdrop-blur">
-            <CardContent className="p-0">
+        <section className="mt-16 overflow-hidden rounded-sm border border-border/80 bg-card/80 backdrop-blur">
+          <div className="grid items-start lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.9fr)] lg:divide-x lg:divide-border/70">
+            <div>
               <div className="flex flex-col gap-4 border-b border-border/70 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-3xl font-medium tracking-[-0.06em]">Leaderboard</h2>
@@ -436,7 +435,7 @@ export default function App() {
                     <select
                       value={metric}
                       onChange={(event) => setMetric(event.target.value as MetricKey)}
-                      className="h-11 min-w-36 appearance-none rounded-lg border border-border bg-background px-4 pr-10 text-sm outline-none ring-0 transition focus:border-ring"
+                      className="h-11 min-w-36 appearance-none rounded-sm border border-border bg-background px-4 pr-10 text-sm outline-none ring-0 transition focus:border-ring"
                     >
                       {metrics.map((item) => (
                         <option key={item} value={item}>
@@ -451,7 +450,7 @@ export default function App() {
                     <select
                       value={windowDays}
                       onChange={(event) => setWindowDays(Number(event.target.value) as WindowKey)}
-                      className="h-11 min-w-36 appearance-none rounded-lg border border-border bg-background px-4 pr-10 text-sm outline-none ring-0 transition focus:border-ring"
+                      className="h-11 min-w-36 appearance-none rounded-sm border border-border bg-background px-4 pr-10 text-sm outline-none ring-0 transition focus:border-ring"
                     >
                       {windows.map((item) => (
                         <option key={item} value={item}>
@@ -466,7 +465,7 @@ export default function App() {
                     <select
                       value={provider}
                       onChange={(event) => setProvider(event.target.value as ProviderId | 'all')}
-                      className="h-11 min-w-40 appearance-none rounded-lg border border-border bg-background px-4 pr-10 text-sm outline-none ring-0 transition focus:border-ring"
+                      className="h-11 min-w-40 appearance-none rounded-sm border border-border bg-background px-4 pr-10 text-sm outline-none ring-0 transition focus:border-ring"
                     >
                       {providers.map((item) => (
                         <option key={item} value={item}>
@@ -480,7 +479,7 @@ export default function App() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-11 rounded-lg"
+                    className="h-11 rounded-sm"
                     onClick={() => setReloadTick((value) => value + 1)}
                     disabled={loading}
                   >
@@ -585,14 +584,12 @@ export default function App() {
                   );
                 })}
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          <div className="space-y-4 lg:sticky lg:top-6">
-            {selected ? (
-              <>
-                <Card className="rounded-xl border-border/80 bg-card/80 backdrop-blur">
-                  <CardContent className="p-6">
+            <div className="border-t border-border/70 lg:border-t-0">
+              {selected ? (
+                <div className="divide-y divide-border/70 lg:sticky lg:top-6">
+                  <section className="px-6 py-6">
                     <div className="flex flex-col gap-6">
                       <div className="flex items-start justify-between gap-4">
                         <div>
@@ -602,58 +599,56 @@ export default function App() {
                             {selected.githubHandle} · top model {selected.topModel}
                           </p>
                         </div>
-                        <Badge variant="outline" className="rounded-md px-3 py-1">rank #{selected.rank}</Badge>
+                        <Badge variant="outline" className="rounded-sm px-3 py-1">rank #{selected.rank}</Badge>
                       </div>
 
                       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                        <div className="rounded-lg border border-border/70 bg-muted/40 p-4">
+                        <div className="border border-border/70 bg-muted/30 p-4">
                           <div className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">{metric}</div>
                           <div className="mt-3 text-3xl font-medium tracking-[-0.06em]">{formatCompact(selected.metricValue)}</div>
                         </div>
-                        <div className="rounded-lg border border-border/70 bg-muted/40 p-4">
+                        <div className="border border-border/70 bg-muted/30 p-4">
                           <div className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">growth</div>
                           <div className="mt-3 text-3xl font-medium tracking-[-0.06em]">{formatPercent(selected.growth)}</div>
                         </div>
-                        <div className="rounded-lg border border-border/70 bg-muted/40 p-4">
+                        <div className="border border-border/70 bg-muted/30 p-4">
                           <div className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">updated</div>
                           <div className="mt-3 text-lg font-medium tracking-[-0.04em]">{formatUpdatedAt(selected.lastSubmitted)}</div>
                         </div>
                       </div>
-
-                      <div>
-                        <div className="mb-4 flex items-center justify-between gap-3">
-                          <div>
-                            <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">traffic composition</p>
-                            <h4 className="mt-1 text-xl font-medium tracking-[-0.04em]">Token split</h4>
-                          </div>
-                          <Badge variant="muted" className="rounded-md">{windowDays} day view</Badge>
-                        </div>
-                        <div className="space-y-4">
-                          {selectedProviderBars.map((item) => (
-                            <div key={item.label} className="space-y-2">
-                              <div className="flex items-center justify-between gap-3 text-sm">
-                                <span className="text-muted-foreground">{item.label}</span>
-                                <span className="font-mono">{formatNumber(item.value)}</span>
-                              </div>
-                              <div className="h-2 rounded-sm bg-muted">
-                                <div className="h-full rounded-sm bg-foreground transition-all" style={{ width: `${Math.max(4, item.percent * 100)}%` }} />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </section>
 
-                <Card className="rounded-xl border-border/80 bg-card/80 backdrop-blur">
-                  <CardContent className="p-6">
+                  <section className="px-6 py-6">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">traffic composition</p>
+                        <h4 className="mt-1 text-xl font-medium tracking-[-0.04em]">Token split</h4>
+                      </div>
+                      <Badge variant="muted" className="rounded-sm">{windowDays} day view</Badge>
+                    </div>
+                    <div className="space-y-4">
+                      {selectedProviderBars.map((item) => (
+                        <div key={item.label} className="space-y-2">
+                          <div className="flex items-center justify-between gap-3 text-sm">
+                            <span className="text-muted-foreground">{item.label}</span>
+                            <span className="font-mono">{formatNumber(item.value)}</span>
+                          </div>
+                          <div className="h-2 rounded-sm bg-muted">
+                            <div className="h-full rounded-sm bg-foreground transition-all" style={{ width: `${Math.max(4, item.percent * 100)}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="px-6 py-6">
                     <div className="mb-4 flex items-center justify-between gap-3">
                       <div>
                         <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">model breakdown</p>
                         <h4 className="mt-1 text-xl font-medium tracking-[-0.04em]">Top models</h4>
                       </div>
-                      <Badge variant="muted" className="rounded-md">{metric}</Badge>
+                      <Badge variant="muted" className="rounded-sm">{metric}</Badge>
                     </div>
                     <div className="space-y-4">
                       {selectedModels.map((item) => (
@@ -668,10 +663,12 @@ export default function App() {
                         </div>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
-              </>
-            ) : null}
+                  </section>
+                </div>
+              ) : (
+                <div className="px-6 py-10 text-sm text-muted-foreground">Pick a builder to inspect the breakdown.</div>
+              )}
+            </div>
           </div>
         </section>
       </div>
