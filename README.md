@@ -1,45 +1,94 @@
 # SlopArena
 
-A small full-stack MVP for tracking local Claude Code and Codex usage and publishing snapshots to a shared leaderboard.
+A CLI-first leaderboard for tracking local Claude Code and Codex usage and publishing snapshots to a public board.
 
 Inspired by [`slopmeter`](https://github.com/JeanMeijer/slopmeter) by Jean Meijer. SlopArena uses its own code and parsers, but the original repo was a great reference point for the local-usage-tracking approach.
 
-The API now stores leaderboard data in Neon Postgres instead of a local JSON file.
+## For users
 
-## What is included
+### Quick start
 
-- `packages/cli`: the `sloparena` CLI scans local Claude/Codex logs, logs in with GitHub device flow, and submits snapshots
-- `apps/api`: Express API backed by Neon Postgres that verifies GitHub identity on submission
-- `apps/web`: React/Vite leaderboard UI with switches for provider, metric, and leaderboard mode, plus a small production static server for Railway
+Run:
 
-## Required environment variables
+```bash
+npx sloparena go
+```
 
-Set these before starting the app:
+That flow will:
+- open GitHub login in your browser
+- optionally let you attach an X handle
+- scan your local Claude Code and Codex logs
+- submit your snapshot
+- open the leaderboard
+
+### Other CLI commands
+
+```bash
+npx sloparena help
+npx sloparena login
+npx sloparena whoami
+npx sloparena profile
+npx sloparena scan --days 365
+npx sloparena submit --days 365
+npx sloparena logout
+```
+
+### Data sources
+
+SlopArena reads local usage from:
+- Claude Code: `~/.config/claude`, `~/.claude`, or `CLAUDE_CONFIG_DIR`
+- Codex: `~/.codex` or `CODEX_HOME`
+
+### Notes
+
+- Local login is stored in `~/.sloparena/auth.json`.
+- The leaderboard shows verified GitHub identity and an optional user-supplied X handle.
+- The published CLI uses the production backend and web app by default.
+- Production web: `https://sloparena.up.railway.app`
+
+## For developers
+
+### What is included
+
+- `packages/cli`: the `sloparena` CLI for scanning local logs, authenticating with GitHub, and submitting snapshots
+- `apps/api`: Express API backed by Neon Postgres
+- `apps/web`: React/Vite leaderboard UI plus a small production static server for Railway
+- `packages/shared`: shared types and aggregation helpers
+
+### Required environment variables
+
+Set these before starting the API locally:
 
 ```bash
 export NEON_DATABASE_URL="postgresql://..."
 ```
 
-The published CLI already includes the public GitHub client ID by default, so you do not need `GITHUB_CLIENT_ID` for normal CLI usage.
+For Neon, create a project and copy the connection string from the Neon dashboard. The API auto-creates the `usage_snapshots` table on boot.
 
-For Neon, create a project and copy the connection string from the Neon dashboard. The API will auto-create the `usage_snapshots` table on boot.
+The published CLI already includes the public GitHub client ID fallback, so normal end users do not need to set `GITHUB_CLIENT_ID`.
 
-## Commands
-
-Local development still uses:
-
-```bash
-npm run join
-```
-
-The published CLI will use the Railway backend and Railway frontend by default.
-
-Install and build:
+### Install and build
 
 ```bash
 npm install
 npm run build
 ```
+
+### Local development
+
+Run the API and website:
+
+```bash
+npm run dev
+```
+
+Run the guided local flow against local services:
+
+```bash
+npm run join
+```
+
+### Useful commands
 
 Railway-friendly service commands:
 
@@ -50,61 +99,26 @@ npm run build:web
 npm run start:web
 ```
 
-Run the API and website in development:
-
-```bash
-npm run dev
-```
-
-Log in from the terminal:
+CLI against local API:
 
 ```bash
 node packages/cli/dist/index.js login --server http://localhost:4000
 node packages/cli/dist/index.js whoami
-```
-
-Set or clear an optional X handle:
-
-```bash
 node packages/cli/dist/index.js profile --x-handle raunak42
 node packages/cli/dist/index.js profile --clear-x-handle
-```
-
-Scan local usage:
-
-```bash
 node packages/cli/dist/index.js scan --days 30
 node packages/cli/dist/index.js scan --days 30 --json
-```
-
-Submit a snapshot:
-
-```bash
 node packages/cli/dist/index.js submit --server http://localhost:4000 --days 30
-```
-
-Log out locally:
-
-```bash
 node packages/cli/dist/index.js logout
 ```
 
-## Data sources
+### Implementation notes
 
-- Claude Code: `~/.config/claude`, `~/.claude`, or `CLAUDE_CONFIG_DIR`
-- Codex: `~/.codex` or `CODEX_HOME`
-
-## Notes
-
-- The API stores every submission in Neon Postgres (`usage_snapshots` table).
-- The leaderboard aggregates the latest snapshot per `userId + machineId`, so re-submitting from the same machine updates the board instead of double counting.
-- The frontend refreshes dashboard data every 15 seconds.
-- Local terminal login is stored in `~/.sloparena/auth.json`.
-- The leaderboard shows verified GitHub identity and an optional user-supplied X handle.
+- The API stores every submission in Neon Postgres in the `usage_snapshots` table.
+- The leaderboard aggregates the latest snapshot per `userId + machineId`, so re-submitting from the same machine updates the board instead of double counting on the leaderboard.
 - The CLI production API default is `https://usageboard-api-production.up.railway.app`.
 - For Railway, prefer stable root scripts instead of workspace names in the dashboard:
   - API build: `npm run build:api`
   - API start: `npm run start:api`
   - Web build: `npm run build:web`
   - Web start: `npm run start:web`
-- The CLI production web default is `https://sloparena.up.railway.app`.
