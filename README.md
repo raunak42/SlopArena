@@ -1,5 +1,9 @@
 # SlopArena
 
+<p align="center">
+  <img src="./apps/web/src/assets/sloparena-logo.svg" alt="SlopArena logo" width="96" />
+</p>
+
 A CLI-first leaderboard for tracking local Claude Code and Codex usage and publishing snapshots to a public board.
 
 Inspired by [`slopmeter`](https://github.com/JeanMeijer/slopmeter) by Jean Meijer. SlopArena uses its own code and parsers, but the original repo was a great reference point for the local-usage-tracking approach.
