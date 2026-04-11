@@ -1,0 +1,95 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="60" x2="1100" y2="590" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0D1117"/>
+      <stop offset="1" stop-color="#090B0F"/>
+    </linearGradient>
+    <radialGradient id="pink" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(410 120) rotate(35) scale(420 220)">
+      <stop stop-color="#FF5CAD" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#FF5CAD" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="green" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(920 420) rotate(-12) scale(360 240)">
+      <stop stop-color="#39D353" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#39D353" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="40" y="40" width="1120" height="550" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="28" stdDeviation="30" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#pink)"/>
+  <rect width="1200" height="630" fill="url(#green)"/>
+
+  <g opacity="0.18">
+    <path d="M0 520H1200" stroke="#FFFFFF" stroke-opacity="0.08"/>
+    <path d="M0 350H1200" stroke="#FFFFFF" stroke-opacity="0.05"/>
+    <path d="M0 180H1200" stroke="#FFFFFF" stroke-opacity="0.04"/>
+    <path d="M180 0V630" stroke="#FFFFFF" stroke-opacity="0.04"/>
+    <path d="M420 0V630" stroke="#FFFFFF" stroke-opacity="0.03"/>
+    <path d="M660 0V630" stroke="#FFFFFF" stroke-opacity="0.03"/>
+    <path d="M900 0V630" stroke="#FFFFFF" stroke-opacity="0.04"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="68" y="74" width="1064" height="482" rx="28" fill="#11161D" fill-opacity="0.92" stroke="rgba(255,255,255,0.10)"/>
+    <rect x="68" y="74" width="1064" height="64" rx="28" fill="#151B23"/>
+    <circle cx="108" cy="106" r="6" fill="#FF5F57"/>
+    <circle cx="130" cy="106" r="6" fill="#FEBC2E"/>
+    <circle cx="152" cy="106" r="6" fill="#28C840"/>
+    <text x="188" y="112" fill="#B4BAC3" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20">sloparena.up.railway.app</text>
+
+    <text x="104" y="224" fill="#F5F7FB" font-family="Inter, Arial, sans-serif" font-size="68" font-weight="600" letter-spacing="-3">Welcome to the</text>
+    <text x="104" y="296" fill="#F5F7FB" font-family="Inter, Arial, sans-serif" font-size="86" font-weight="700" letter-spacing="-4">Slop Arena</text>
+    <text x="104" y="352" fill="#AAB1BB" font-family="Inter, Arial, sans-serif" font-size="30">CLI-first leaderboard for Claude Code and Codex power users.</text>
+
+    <rect x="104" y="402" width="444" height="72" rx="16" fill="#0F141B" stroke="#FFFFFF" stroke-opacity="0.10"/>
+    <text x="132" y="448" fill="#F5F7FB" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="30">npx sloparena go</text>
+    <rect x="496" y="420" width="34" height="34" rx="8" fill="#151B23" stroke="#FFFFFF" stroke-opacity="0.10"/>
+    <rect x="510" y="428" width="12" height="12" rx="3" fill="none" stroke="#C9CED6" stroke-width="2"/>
+    <rect x="503" y="435" width="12" height="12" rx="3" fill="none" stroke="#C9CED6" stroke-width="2"/>
+
+    <text x="104" y="514" fill="#5EDB73" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="3">PUBLIC RECEIPTS • GITHUB VERIFIED • OPEN SOURCE</text>
+
+    <rect x="706" y="174" width="354" height="268" rx="20" fill="#0E1319" stroke="#FFFFFF" stroke-opacity="0.08"/>
+    <text x="736" y="212" fill="#9EA6B2" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" letter-spacing="2">TODAY’S WINNERS</text>
+    <text x="736" y="260" fill="#F5F7FB" font-family="Inter, Arial, sans-serif" font-size="44" font-weight="650">@raunak42</text>
+    <text x="736" y="294" fill="#9EA6B2" font-family="Inter, Arial, sans-serif" font-size="21">gpt-5.4 · 21.0B total</text>
+    <rect x="736" y="322" width="284" height="12" rx="6" fill="#20262D"/>
+    <rect x="736" y="322" width="284" height="12" rx="6" fill="#39D353"/>
+
+    <text x="736" y="380" fill="#9EA6B2" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" letter-spacing="2">YEAR GRID</text>
+    <g transform="translate(736 398)">
+      <rect x="0" y="0" width="10" height="10" rx="2" fill="#161B22"/>
+      <rect x="16" y="0" width="10" height="10" rx="2" fill="#161B22"/>
+      <rect x="32" y="0" width="10" height="10" rx="2" fill="#0E4429"/>
+      <rect x="48" y="0" width="10" height="10" rx="2" fill="#006D32"/>
+      <rect x="64" y="0" width="10" height="10" rx="2" fill="#26A641"/>
+      <rect x="80" y="0" width="10" height="10" rx="2" fill="#39D353"/>
+      <rect x="96" y="0" width="10" height="10" rx="2" fill="#26A641"/>
+      <rect x="112" y="0" width="10" height="10" rx="2" fill="#39D353"/>
+      <rect x="128" y="0" width="10" height="10" rx="2" fill="#0E4429"/>
+      <rect x="144" y="0" width="10" height="10" rx="2" fill="#006D32"/>
+      <rect x="0" y="16" width="10" height="10" rx="2" fill="#161B22"/>
+      <rect x="16" y="16" width="10" height="10" rx="2" fill="#0E4429"/>
+      <rect x="32" y="16" width="10" height="10" rx="2" fill="#006D32"/>
+      <rect x="48" y="16" width="10" height="10" rx="2" fill="#26A641"/>
+      <rect x="64" y="16" width="10" height="10" rx="2" fill="#39D353"/>
+      <rect x="80" y="16" width="10" height="10" rx="2" fill="#26A641"/>
+      <rect x="96" y="16" width="10" height="10" rx="2" fill="#39D353"/>
+      <rect x="112" y="16" width="10" height="10" rx="2" fill="#39D353"/>
+      <rect x="128" y="16" width="10" height="10" rx="2" fill="#26A641"/>
+      <rect x="144" y="16" width="10" height="10" rx="2" fill="#161B22"/>
+      <rect x="0" y="32" width="10" height="10" rx="2" fill="#006D32"/>
+      <rect x="16" y="32" width="10" height="10" rx="2" fill="#26A641"/>
+      <rect x="32" y="32" width="10" height="10" rx="2" fill="#39D353"/>
+      <rect x="48" y="32" width="10" height="10" rx="2" fill="#26A641"/>
+      <rect x="64" y="32" width="10" height="10" rx="2" fill="#39D353"/>
+      <rect x="80" y="32" width="10" height="10" rx="2" fill="#0E4429"/>
+      <rect x="96" y="32" width="10" height="10" rx="2" fill="#006D32"/>
+      <rect x="112" y="32" width="10" height="10" rx="2" fill="#26A641"/>
+      <rect x="128" y="32" width="10" height="10" rx="2" fill="#39D353"/>
+      <rect x="144" y="32" width="10" height="10" rx="2" fill="#26A641"/>
+    </g>
+  </g>
+</svg>
