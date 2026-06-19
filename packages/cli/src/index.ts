@@ -24,8 +24,8 @@ import {
 } from './ui.js';
 import { getAuthFilePath, getDefaultMachineId, loadLocalSession } from './utils.js';
 
-const DEFAULT_API_URL = process.env.SLOPARENA_API_URL?.trim() || 'https://usageboard.vercel.app';
-const DEFAULT_WEB_URL = process.env.SLOPARENA_WEB_URL?.trim() || 'https://usageboard.vercel.app';
+const DEFAULT_API_URL = process.env.SLOPARENA_API_URL?.trim() || 'https://sloparena.vercel.app';
+const DEFAULT_WEB_URL = process.env.SLOPARENA_WEB_URL?.trim() || 'https://sloparena.vercel.app';
 
 interface ParsedArgs {
   command: 'scan' | 'submit' | 'login' | 'whoami' | 'logout' | 'profile' | 'go' | 'help';

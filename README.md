@@ -48,7 +48,7 @@ SlopArena reads local usage from:
 - Local login is stored in `~/.sloparena/auth.json`.
 - The leaderboard shows verified GitHub identity and an optional user-supplied X handle.
 - The published CLI uses the production backend and web app by default.
-- Production web/API: `https://usageboard.vercel.app`
+- Production web/API: `https://sloparena.vercel.app`
 
 ## For developers
 
@@ -120,6 +120,6 @@ node packages/cli/dist/index.js logout
 
 - The API stores every submission in Neon Postgres in the `usage_snapshots` table.
 - The leaderboard aggregates the latest snapshot per `userId + machineId`, so re-submitting from the same machine updates the board instead of double counting on the leaderboard.
-- The CLI production API default is `https://usageboard.vercel.app`.
+- The CLI production API default is `https://sloparena.vercel.app`.
 - Vercel serves the Vite app and the Express API from the same deployment. API routes are exposed under `/api/*`.
 - For Vercel, use the included `vercel.json`; the build command is `npm run build:web` and the output directory is `apps/web/dist`.

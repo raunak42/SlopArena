@@ -19,7 +19,7 @@ import { applySecurityHeaders, createCorsOptions, createRateLimiter, isValidAuth
 import { parseSubmitRequest } from "./validation.js";
 
 const port = Number(process.env.PORT ?? 4000);
-const webUrl = process.env.SLOPARENA_WEB_URL?.trim() || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://usageboard.vercel.app");
+const webUrl = process.env.SLOPARENA_WEB_URL?.trim() || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://sloparena.vercel.app");
 const AUTH_TTL_MS = 10 * 60 * 1000;
 let readyPromise: Promise<void> | null = null;
 

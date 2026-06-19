@@ -37,7 +37,7 @@
     <circle cx="108" cy="106" r="6" fill="#FF5F57"/>
     <circle cx="130" cy="106" r="6" fill="#FEBC2E"/>
     <circle cx="152" cy="106" r="6" fill="#28C840"/>
-    <text x="188" y="112" fill="#B4BAC3" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20">usageboard.vercel.app</text>
+    <text x="188" y="112" fill="#B4BAC3" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20">sloparena.vercel.app</text>
 
     <text x="104" y="224" fill="#F5F7FB" font-family="Inter, Arial, sans-serif" font-size="68" font-weight="600" letter-spacing="-3">Welcome to the</text>
     <text x="104" y="296" fill="#F5F7FB" font-family="Inter, Arial, sans-serif" font-size="86" font-weight="700" letter-spacing="-4">Slop Arena</text>
