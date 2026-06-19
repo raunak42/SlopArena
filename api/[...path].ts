@@ -1,6 +1,5 @@
-import app, { ensureReady } from '../apps/api/src/index.js';
+import app from '../apps/api/src/index';
 
-export default async function handler(request: any, response: any) {
-  await ensureReady();
+export default function handler(request: any, response: any) {
   return app(request, response);
 }
