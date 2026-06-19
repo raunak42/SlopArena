@@ -32,7 +32,7 @@ import { Skeleton } from './components/ui/skeleton';
 import { cn } from './lib/utils';
 import logoUrl from './assets/sloparena-logo.svg';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'https://usageboard-api-production.up.railway.app';
+const API_URL = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 const REPO_URL = 'https://github.com/raunak42/SlopArena';
 const REPO_API_URL = 'https://api.github.com/repos/raunak42/SlopArena';
 const COMMAND = 'npx sloparena go';

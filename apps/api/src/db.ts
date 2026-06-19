@@ -5,6 +5,7 @@ import {
   sortModelUsage,
   type DailyUsage,
   type ProviderId,
+  type PublicProfile,
   type TokenTotals,
   type UsageSnapshot,
 } from '@sloparena/shared';
@@ -231,6 +232,15 @@ function parseStoredSnapshot(value: unknown): UsageSnapshot | null {
   return null;
 }
 
+export type AuthSession = {
+  state: string;
+  status: 'pending' | 'complete' | 'error';
+  accessToken?: string;
+  profile?: PublicProfile;
+  error?: string;
+  createdAt: string;
+};
+
 let sqlClient: postgres.Sql | null = null;
 
 function getConnectionString(): string {
@@ -267,6 +277,17 @@ export async function initDatabase(): Promise<void> {
   `;
   await sql`create index if not exists usage_snapshots_user_machine_idx on usage_snapshots (user_id, machine_id, submitted_at desc)`;
   await sql`create index if not exists usage_snapshots_submitted_at_idx on usage_snapshots (submitted_at desc)`;
+  await sql`
+    create table if not exists auth_sessions (
+      state text primary key,
+      status text not null,
+      access_token text,
+      profile jsonb,
+      error text,
+      created_at timestamptz not null default now()
+    )
+  `;
+  await sql`create index if not exists auth_sessions_created_at_idx on auth_sessions (created_at)`;
 }
 
 export async function listSnapshots(): Promise<UsageSnapshot[]> {
@@ -293,6 +314,68 @@ export async function insertSnapshot(snapshot: UsageSnapshot): Promise<void> {
       submitted_at = excluded.submitted_at,
       payload = excluded.payload
   `;
+}
+
+export async function getAuthSession(state: string): Promise<AuthSession | null> {
+  const sql = getSql();
+  const rows = await sql<{
+    state: string;
+    status: string;
+    access_token: string | null;
+    profile: unknown;
+    error: string | null;
+    created_at: Date;
+  }[]>`
+    select state, status, access_token, profile, error, created_at
+    from auth_sessions
+    where state = ${state}
+    limit 1
+  `;
+  const row = rows[0];
+  if (!row || (row.status !== 'pending' && row.status !== 'complete' && row.status !== 'error')) {
+    return null;
+  }
+
+  return {
+    state: row.state,
+    status: row.status,
+    accessToken: row.access_token ?? undefined,
+    profile: isPublicProfile(row.profile) ? row.profile as PublicProfile : undefined,
+    error: row.error ?? undefined,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+export async function upsertAuthSession(session: Omit<AuthSession, 'createdAt'> & { createdAt?: string }): Promise<void> {
+  const sql = getSql();
+  await sql`
+    insert into auth_sessions (state, status, access_token, profile, error, created_at)
+    values (
+      ${session.state},
+      ${session.status},
+      ${session.accessToken ?? null},
+      ${session.profile ? sql.json(session.profile) : null},
+      ${session.error ?? null},
+      ${session.createdAt ?? new Date().toISOString()}
+    )
+    on conflict (state) do update
+    set
+      status = excluded.status,
+      access_token = excluded.access_token,
+      profile = excluded.profile,
+      error = excluded.error,
+      created_at = excluded.created_at
+  `;
+}
+
+export async function deleteAuthSession(state: string): Promise<void> {
+  const sql = getSql();
+  await sql`delete from auth_sessions where state = ${state}`;
+}
+
+export async function cleanupAuthSessions(olderThan: Date): Promise<void> {
+  const sql = getSql();
+  await sql`delete from auth_sessions where created_at < ${olderThan.toISOString()}`;
 }
 
 export async function pingDatabase(): Promise<void> {

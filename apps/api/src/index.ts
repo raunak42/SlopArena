@@ -2,23 +2,26 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import cors from "cors";
 import express from "express";
-import type { PublicProfile, UsageSnapshot } from "@sloparena/shared";
+import type { UsageSnapshot } from "@sloparena/shared";
 import { buildDashboard } from "./aggregate.js";
-import { initDatabase, insertSnapshot, listSnapshots, pingDatabase } from "./db.js";
+import {
+  cleanupAuthSessions as cleanupStoredAuthSessions,
+  deleteAuthSession,
+  getAuthSession,
+  initDatabase,
+  insertSnapshot,
+  listSnapshots,
+  pingDatabase,
+  upsertAuthSession,
+} from "./db.js";
 import { buildGitHubAuthorizeUrl, exchangeGitHubCode, fetchGitHubProfile } from "./github.js";
 import { applySecurityHeaders, createCorsOptions, createRateLimiter, isValidAuthState } from "./security.js";
 import { parseSubmitRequest } from "./validation.js";
 
 const port = Number(process.env.PORT ?? 4000);
-const webUrl = process.env.SLOPARENA_WEB_URL?.trim() || "https://sloparena.up.railway.app";
-const authSessions = new Map<string, {
-  status: "pending" | "complete" | "error";
-  accessToken?: string;
-  profile?: PublicProfile;
-  error?: string;
-  createdAt: number;
-}>();
+const webUrl = process.env.SLOPARENA_WEB_URL?.trim() || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://usageboard.vercel.app");
 const AUTH_TTL_MS = 10 * 60 * 1000;
+let readyPromise: Promise<void> | null = null;
 
 const authStartLimiter = createRateLimiter({
   keyPrefix: "auth-start",
@@ -45,13 +48,13 @@ const submissionLimiter = createRateLimiter({
   message: "Submission rate limit exceeded. Please wait before sending more snapshots.",
 });
 
-function cleanupAuthSessions(): void {
-  const now = Date.now();
-  for (const [state, session] of authSessions.entries()) {
-    if (now - session.createdAt > AUTH_TTL_MS) {
-      authSessions.delete(state);
-    }
-  }
+async function cleanupAuthSessions(): Promise<void> {
+  await cleanupStoredAuthSessions(new Date(Date.now() - AUTH_TTL_MS));
+}
+
+export async function ensureReady(): Promise<void> {
+  readyPromise ??= initDatabase();
+  await readyPromise;
 }
 
 function renderAuthPage(title: string, message: string, isError = false): string {
@@ -171,7 +174,8 @@ app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/health", async (_request, response) => {
   try {
-    cleanupAuthSessions();
+    await ensureReady();
+    await cleanupAuthSessions();
     await pingDatabase();
     response.json({ ok: true, port, database: "connected" });
   } catch (error) {
@@ -180,43 +184,48 @@ app.get("/api/health", async (_request, response) => {
   }
 });
 
-app.get("/api/auth/github/start", authStartLimiter, (request, response) => {
-  cleanupAuthSessions();
-  const state = typeof request.query.state === "string" && request.query.state.trim() ? request.query.state.trim() : randomUUID();
-  if (!isValidAuthState(state)) {
-    response.status(400).json({ error: "Invalid auth state" });
-    return;
-  }
-
-  authSessions.set(state, { status: "pending", createdAt: Date.now() });
-
+app.get("/api/auth/github/start", authStartLimiter, async (request, response) => {
   try {
+    await ensureReady();
+    await cleanupAuthSessions();
+    const state = typeof request.query.state === "string" && request.query.state.trim() ? request.query.state.trim() : randomUUID();
+    if (!isValidAuthState(state)) {
+      response.status(400).json({ error: "Invalid auth state" });
+      return;
+    }
+
+    await upsertAuthSession({ state, status: "pending" });
     response.redirect(buildGitHubAuthorizeUrl(state));
   } catch (error) {
-    authSessions.set(state, { status: "error", error: error instanceof Error ? error.message : String(error), createdAt: Date.now() });
+    const state = typeof request.query.state === "string" ? request.query.state.trim() : "";
+    if (state && isValidAuthState(state)) {
+      await upsertAuthSession({ state, status: "error", error: error instanceof Error ? error.message : String(error) }).catch(() => undefined);
+    }
     response.status(500).send(renderAuthPage("GitHub login is not configured", "SlopArena is missing GitHub OAuth settings on the server. Add the GitHub OAuth environment variables and try again.", true));
   }
 });
 
 app.get("/api/auth/github/callback", async (request, response) => {
-  cleanupAuthSessions();
+  await ensureReady();
+  await cleanupAuthSessions();
   const state = typeof request.query.state === "string" ? request.query.state.trim() : "";
   const code = typeof request.query.code === "string" ? request.query.code.trim() : "";
   const githubError = typeof request.query.error === "string" ? request.query.error.trim() : "";
+  const session = state && isValidAuthState(state) ? await getAuthSession(state) : null;
 
-  if (!state || !isValidAuthState(state) || !authSessions.has(state)) {
+  if (!state || !isValidAuthState(state) || !session) {
     response.status(400).send(renderAuthPage("Login session not found", "This GitHub login session is missing or expired. Please go back to the terminal and run SlopArena again.", true));
     return;
   }
 
   if (githubError) {
-    authSessions.set(state, { status: "error", error: githubError, createdAt: Date.now() });
+    await upsertAuthSession({ state, status: "error", error: githubError });
     response.status(400).send(renderAuthPage("GitHub login cancelled", "GitHub did not complete the authorization flow. Return to the terminal and try again.", true));
     return;
   }
 
   if (!code) {
-    authSessions.set(state, { status: "error", error: "Missing GitHub OAuth code.", createdAt: Date.now() });
+    await upsertAuthSession({ state, status: "error", error: "Missing GitHub OAuth code." });
     response.status(400).send(renderAuthPage("Missing login code", "GitHub did not send an authorization code back to SlopArena.", true));
     return;
   }
@@ -224,24 +233,25 @@ app.get("/api/auth/github/callback", async (request, response) => {
   try {
     const accessToken = await exchangeGitHubCode(code);
     const profile = await fetchGitHubProfile(accessToken);
-    authSessions.set(state, { status: "complete", accessToken, profile, createdAt: Date.now() });
+    await upsertAuthSession({ state, status: "complete", accessToken, profile });
     response.send(renderBrowserLoginCompletePage());
   } catch (error) {
     console.error("GitHub callback failed", error);
-    authSessions.set(state, { status: "error", error: error instanceof Error ? error.message : String(error), createdAt: Date.now() });
+    await upsertAuthSession({ state, status: "error", error: error instanceof Error ? error.message : String(error) });
     response.status(500).send(renderAuthPage("GitHub login failed", "SlopArena could not finish GitHub login. Return to the terminal and try again.", true));
   }
 });
 
-app.get("/api/auth/github/status", authStatusLimiter, (request, response) => {
-  cleanupAuthSessions();
+app.get("/api/auth/github/status", authStatusLimiter, async (request, response) => {
+  await ensureReady();
+  await cleanupAuthSessions();
   const state = typeof request.query.state === "string" ? request.query.state.trim() : "";
   if (!state || !isValidAuthState(state)) {
     response.status(400).json({ error: "Missing state" });
     return;
   }
 
-  const session = authSessions.get(state);
+  const session = await getAuthSession(state);
   if (!session) {
     response.status(404).json({ status: "expired", error: "Login session not found or expired." });
     return;
@@ -253,7 +263,7 @@ app.get("/api/auth/github/status", authStatusLimiter, (request, response) => {
       accessToken: session.accessToken,
       profile: session.profile,
     };
-    authSessions.delete(state);
+    await deleteAuthSession(state);
     response.json(payload);
     return;
   }
@@ -268,6 +278,7 @@ app.get("/api/auth/github/status", authStatusLimiter, (request, response) => {
 
 app.get("/api/dashboard", dashboardLimiter, async (_request, response) => {
   try {
+    await ensureReady();
     const history = await listSnapshots();
     response.json(buildDashboard(history));
   } catch (error) {
@@ -284,6 +295,7 @@ app.post("/api/submissions", submissionLimiter, async (request, response) => {
   }
 
   try {
+    await ensureReady();
     const profile = await fetchGitHubProfile(parsed.githubAccessToken, parsed.xHandle);
     const snapshot: UsageSnapshot = {
       ...parsed.snapshot,
@@ -314,13 +326,17 @@ app.post("/api/submissions", submissionLimiter, async (request, response) => {
 });
 
 async function start(): Promise<void> {
-  await initDatabase();
+  await ensureReady();
   app.listen(port, () => {
     console.log(`sloparena-api listening on http://localhost:${port}`);
   });
 }
 
-start().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+if (!process.env.VERCEL) {
+  start().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}
+
+export default app;
