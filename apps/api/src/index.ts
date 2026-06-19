@@ -1,5 +1,14 @@
-import "dotenv/config";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import dotenv from "dotenv";
+
+for (const envPath of [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../..", ".env")]) {
+  if (existsSync(envPath)) {
+    dotenv.config({ path: envPath, override: false });
+  }
+}
+
 import cors from "cors";
 import express from "express";
 import type { UsageSnapshot } from "@sloparena/shared";
